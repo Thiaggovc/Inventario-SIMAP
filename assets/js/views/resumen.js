@@ -1,6 +1,6 @@
 /* Tablero de resumen: la lectura de la situación actual en un vistazo. */
 
-import { h, clear, fmt, fmtFecha, fmtFechaHora } from '../util.js';
+import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced } from '../util.js';
 import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre } from '../state.js';
 import { filters, filterBar, onFilters, hasActiveFilters, setFilter } from '../filters.js';
 import {
@@ -13,6 +13,7 @@ import {
   chartCard,
   simpleTable,
   seriesColor,
+  seriesFill,
   observeResize,
 } from '../charts.js';
 
@@ -33,9 +34,10 @@ export function renderResumen(root) {
       { class: 'view__headrow' },
       h(
         'div',
-        {},
-        h('div', { class: 'kicker' }, data.meta.empresa || 'Grupo SIMAP'),
-        h('h1', { class: 'display' }, 'Panorama del inventario'),
+        { class: 'titleblock' },
+        h('span', { class: 'kicker kicker--pill' }, data.meta.empresa || 'Grupo SIMAP'),
+        h('h1', { class: 'display display--xl' }, 'Panorama del ', h('em', {}, 'inventario')),
+        h('div', { class: 'rule-grow', style: { width: '160px' } })
       ),
       h('div', { class: 'meta-line' })
     ),
@@ -62,22 +64,51 @@ export function renderResumen(root) {
   const grid = h('div', { class: 'grid' });
   shell.append(tiles, grid);
 
-  const paint = () => {
+  let stopReveal = () => {};
+  let prevUnidades = 0;
+
+  const paint = ({ animate = true } = {}) => {
     const items = filterItems(data, filters);
     const s = summarize(data, items, filters.ubicacion);
     renderNote(noteEl, data, items, s);
-    renderTiles(tiles, data, s);
+    renderTiles(tiles, data, s, { animate, from: prevUnidades });
     renderCards(grid, data, items, s);
+    prevUnidades = s.unidades;
+    stopReveal();
+    stopReveal = observeReveal(shell);
   };
 
   paint();
-  const offFilters = onFilters(paint);
+
+  /* Al cambiar un filtro las tarjetas se atenúan y vuelven, sin salto ni
+     esqueleto en blanco: la lectura anterior se mantiene hasta el relevo. */
+  const offFilters = onFilters(() => {
+    const bar = shell.querySelector('.filterbar');
+    if (bar) {
+      bar.classList.remove('is-applying');
+      void bar.offsetWidth;
+      bar.classList.add('is-applying');
+    }
+    if (prefersReduced()) {
+      paint();
+      return;
+    }
+    tiles.classList.add('is-refreshing');
+    grid.classList.add('is-refreshing');
+    setTimeout(() => {
+      paint();
+      tiles.classList.remove('is-refreshing');
+      grid.classList.remove('is-refreshing');
+    }, 150);
+  });
+
   const stopResize = observeResize(grid);
 
   clear(root).append(host);
   return () => {
     offFilters();
     stopResize();
+    stopReveal();
   };
 }
 
@@ -101,52 +132,77 @@ function renderNote(el, data, items, s) {
 
 /* --------------------------------------------------------------- tiles -- */
 
-function renderTiles(host, data, s) {
+function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
   clear(host);
   const descuadre = s.descuadres.length;
 
   host.append(
     tile({
       label: filters.ubicacion ? 'Unidades en la sede' : 'Unidades en inventario',
-      value: fmt(s.unidades),
+      num: s.unidades,
+      from,
+      animate,
       note: `${fmt(s.referencias)} referencias · ${fmt(s.tipologias)} tipologías`,
       hero: true,
+      index: 0,
     }),
-    tile({ label: 'Tipologías', value: fmt(s.tipologias), note: `${fmt(s.medidas)} medidas distintas` }),
+    tile({ label: 'Tipologías', num: s.tipologias, animate, note: `${fmt(s.medidas)} medidas distintas`, index: 1 }),
     tile({
       label: 'Sedes y proyectos',
-      value: fmt(data.ubicaciones.length),
+      num: data.ubicaciones.length,
+      animate,
       note: s.porUbicacion
         .slice()
         .sort((a, b) => b.value - a.value)
         .slice(0, 1)
         .map((u) => `Mayor volumen: ${u.nombre}`)
         .join(''),
+      index: 2,
     }),
     tile({
       label: 'Unidades compradas',
-      value: fmt(s.compradas),
+      num: s.compradas,
+      animate,
       note: `${fmt(s.porCompra.length)} compras fechadas`,
+      index: 3,
     }),
     tile({
       label: 'Consistencia',
-      value: descuadre ? fmt(descuadre) : 'OK',
+      value: descuadre ? null : 'OK',
+      num: descuadre ? descuadre : null,
+      animate,
       note: descuadre
-        ? `referencias con descuadre entre propietario y sede`
+        ? 'referencias con descuadre entre propietario y sede'
         : 'propietario y sede cuadran en todas las referencias',
       alert: descuadre > 0,
+      index: 4,
     })
   );
 }
 
-function tile({ label, value, note, hero = false, alert = false }) {
-  return h(
+function tile({ label, value, num = null, from = 0, animate = true, note, hero = false, alert = false, index = 0 }) {
+  const valueEl = h(
+    'div',
+    { class: `tile__value ${hero ? 'tile__value--hero' : ''}` },
+    num === null ? value : fmt(num)
+  );
+
+  const el = h(
     'article',
-    { class: `tile ${hero ? 'tile--hero' : ''}` },
+    { class: `tile glass reveal ${hero ? 'tile--hero' : ''}`, style: { '--i': index } },
     h('div', { class: 'tile__label' }, label),
-    h('div', { class: `tile__value ${hero ? 'tile__value--hero' : ''}` }, value),
+    valueEl,
     note ? h('div', { class: `tile__note ${alert ? 'tile__note--alert' : ''}` }, note) : null
   );
+
+  if (num !== null && animate) {
+    // El conteo arranca cuando la tarjeta entra en pantalla, no antes.
+    el._firstDraw = () => animateNumber(valueEl, num, { from, duration: hero ? 1100 : 800 });
+    valueEl.textContent = fmt(from);
+  }
+
+  if (hero) trackPointer(el);
+  return el;
 }
 
 /* -------------------------------------------------------------- tarjetas */
@@ -154,8 +210,10 @@ function tile({ label, value, note, hero = false, alert = false }) {
 function renderCards(grid, data, items, s) {
   clear(grid);
 
-  const ubSeries = data.ubicaciones.map((u, i) => ({ ...u, color: seriesColor(i) }));
-  const prSeries = data.propietarios.map((p, i) => ({ ...p, color: seriesColor(i) }));
+  // Cada entidad conserva su ranura de color; el degradado sólo aporta volumen.
+  const dress = (e, i) => ({ ...e, slot: i, color: seriesColor(i), colorLift: `var(--series-${(i % 5) + 1}-lift)`, fill: seriesFill(i) });
+  const ubSeries = data.ubicaciones.map(dress);
+  const prSeries = data.propietarios.map(dress);
 
   /* 1 · reparto por sede ------------------------------------------------- */
   const repartoParts = ubSeries
@@ -166,10 +224,11 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Dónde está el inventario',
+      index: 0,
       sub: 'Reparto de unidades entre sedes y proyectos, sobre las referencias filtradas',
       span: 'col-12',
       legendEl: legend(ubSeries),
-      render: (el) => shareBar(el, { parts: repartoParts, unidad: 'unidades' }),
+      render: (el, o) => shareBar(el, { parts: repartoParts, unidad: 'unidades', ...o }),
       table: () =>
         simpleTable(
           [
@@ -188,9 +247,10 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Existencias por tipología',
+      index: 1,
       sub: `Las ${Math.min(TOP_TIPOS, s.porTipo.length)} tipologías de mayor volumen`,
       span: 'col-8',
-      render: (el) => barsH(el, { rows: tipoRows, unidad: 'unidades', maxLabel: 34 }),
+      render: (el, o) => barsH(el, { rows: tipoRows, unidad: 'unidades', maxLabel: 34, ...o }),
       table: () =>
         simpleTable(
           [
@@ -213,14 +273,16 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Propiedad de los activos',
+      index: 2,
       sub: 'Unidades asignadas a cada propietario',
       span: 'col-4',
       legendEl: legend(propParts),
-      render: (el) =>
+      render: (el, o) =>
         barsH(el, {
-          rows: propParts.map((p) => ({ key: p.nombre, value: p.value, color: p.color })),
+          rows: propParts.map((p) => ({ key: p.nombre, value: p.value, slot: p.slot })),
           unidad: 'unidades',
           maxLabel: 18,
+          ...o,
         }),
       table: () =>
         simpleTable(
@@ -240,10 +302,11 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Tipología por sede',
+      index: 3,
       sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
       span: 'col-12',
       legendEl: legend(ubSeries),
-      render: (el) => stackedBarsH(el, { rows: cross, series: ubSeries, unidad: 'unidades' }),
+      render: (el, o) => stackedBarsH(el, { rows: cross, series: ubSeries, unidad: 'unidades', ...o }),
       table: () =>
         simpleTable(
           [
@@ -274,9 +337,10 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Compras por fecha',
+      index: 4,
       sub: 'Unidades adquiridas en cada compra registrada',
       span: 'col-6',
-      render: (el) => columns(el, { rows: compraRows, unidad: 'unidades compradas' }),
+      render: (el, o) => columns(el, { rows: compraRows, unidad: 'unidades compradas', ...o }),
       table: () =>
         simpleTable(
           [
@@ -291,9 +355,10 @@ function renderCards(grid, data, items, s) {
     }),
     chartCard({
       title: 'Compras acumuladas',
+      index: 5,
       sub: 'Suma progresiva de las unidades adquiridas',
       span: 'col-6',
-      render: (el) => areaLine(el, { points: acumulado, unidad: 'unidades acumuladas' }),
+      render: (el, o) => areaLine(el, { points: acumulado, unidad: 'unidades acumuladas', ...o }),
       table: () =>
         simpleTable(
           [
@@ -310,9 +375,10 @@ function renderCards(grid, data, items, s) {
   grid.append(
     chartCard({
       title: 'Medidas con mayor existencia',
+      index: 6,
       sub: `${fmt(s.medidas)} medidas distintas en las referencias filtradas`,
       span: 'col-8',
-      render: (el) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 30 }),
+      render: (el, o) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 30, ...o }),
       table: () =>
         simpleTable(
           [
@@ -420,7 +486,7 @@ function consistencyCard(data, s) {
 
   return h(
     'section',
-    { class: 'card col-4' },
+    { class: 'card glass reveal col-4', style: { '--i': 7 } },
     h(
       'header',
       { class: 'card__head' },

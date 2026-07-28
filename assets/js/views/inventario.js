@@ -1,6 +1,6 @@
 /* Inventario detallado: consulta, alta, edición y baja de referencias. */
 
-import { h, clear, fmt, fmtFecha, toInt, openModal, confirmDialog, toast, sumValues, slug } from '../util.js';
+import { h, clear, fmt, fmtFecha, toInt, openModal, confirmDialog, toast, sumValues, slug, observeReveal, prefersReduced } from '../util.js';
 import { store, commit, filterItems, itemTotal, itemPropTotal, itemDescuadre, newItem } from '../state.js';
 import { filters, filterBar, onFilters } from '../filters.js';
 
@@ -24,9 +24,10 @@ export function renderInventario(root) {
         { class: 'view__headrow' },
         h(
           'div',
-          {},
-          h('div', { class: 'kicker' }, 'Registro maestro'),
-          h('h1', { class: 'display' }, 'Inventario de formaletería')
+          { class: 'titleblock' },
+          h('span', { class: 'kicker kicker--pill' }, 'Registro maestro'),
+          h('h1', { class: 'display display--xl' }, 'Inventario de ', h('em', {}, 'formaletería')),
+          h('div', { class: 'rule-grow', style: { width: '150px' } })
         ),
         h(
           'div',
@@ -46,7 +47,7 @@ export function renderInventario(root) {
   const noteEl = h('div', { class: 'filterbar__note' });
   shell.append(filterBar(data, { note: noteEl }));
 
-  const card = h('section', { class: 'card' });
+  const card = h('section', { class: 'card glass reveal' });
   shell.append(card);
 
   function repaint() {
@@ -60,20 +61,41 @@ export function renderInventario(root) {
       h('span', {}, `Página ${page} de ${pages}`)
     );
 
-    clear(card).append(
-      h('div', { class: 'table-wrap' }, buildTable(store.data, slice, repaint)),
-      pager(items.length, pages, repaint)
-    );
+    const wrap = h('div', { class: 'table-wrap' }, buildTable(store.data, slice, repaint));
+    clear(card).append(wrap, pager(items.length, pages, repaint));
+    if (!prefersReduced()) {
+      wrap.classList.add('swap-in');
+      // Las filas entran escalonadas: la lista se «llena» en vez de aparecer.
+      slice.forEach((_, i) => {
+        const tr = wrap.querySelectorAll('tbody tr')[i];
+        if (!tr || !tr.animate) return;
+        tr.animate(
+          [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 320, delay: Math.min(i, 18) * 22, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
+        );
+      });
+    }
   }
 
   repaint();
+
   const off = onFilters(() => {
     page = 1;
+    const bar = shell.querySelector('.filterbar');
+    if (bar) {
+      bar.classList.remove('is-applying');
+      void bar.offsetWidth;
+      bar.classList.add('is-applying');
+    }
     repaint();
   });
 
   clear(root).append(host);
-  return off;
+  const stopReveal = observeReveal(shell);
+  return () => {
+    off();
+    stopReveal();
+  };
 }
 
 /* --------------------------------------------------------------- orden -- */

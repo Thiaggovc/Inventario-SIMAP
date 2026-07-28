@@ -180,12 +180,54 @@ scripts/validar-datos.mjs      validación usada por CI
 
 ### Identidad visual
 
-Blanco, negro y el azul corporativo `#0073C4`, con tipografía serif para los
-títulos y sans para los datos. Los gráficos usan una paleta categórica derivada
-del azul de la marca:
+Editorial en la estructura, *liquid glass* en la superficie. Blanco, negro y el
+azul corporativo `#0073C4`, con serif para los titulares y sans para los datos.
 
-| Ranura | Claro | Oscuro |
-| --- | --- | --- |
+- **Cristal.** Cabecera, filtros, tarjetas, tablas, globos y diálogos son
+  paneles translúcidos con desenfoque de fondo, filo especular y sombra suave.
+  Detrás respira un campo de luz azul en movimiento muy lento, con un grano
+  finísimo que evita el aspecto plástico.
+- **Titulares.** Antetítulo en píldora de cristal, titular serif con una palabra
+  acentuada en degradado animado y una regla que se despliega debajo.
+- **Gráficos con degradado.** Cada serie se pinta con un degradado propio de su
+  matiz más un velo especular. El matiz sigue identificando a la entidad: el
+  degradado aporta volumen, nunca codifica magnitud.
+
+| Ranura | Claro | Oscuro | Extremo claro (claro / oscuro) |
+| --- | --- | --- | --- |
+| 1 | `#0073C4` | `#3D97E8` | `#4AA8EA` / `#7EBCF3` |
+| 2 | `#EB6834` | `#D95926` | `#F79A70` / `#EF8558` |
+| 3 | `#1BAF7A` | `#199E70` | `#55D6A8` / `#3FC994` |
+| 4 | `#4A3AA7` | `#9085E9` | `#8A7CE0` / `#B6AEF4` |
+| 5 | `#EDA100` | `#C98500` | `#F7C959` / `#ECB43F` |
+
+Sobre fondos de marca con texto blanco encima se usa un par aparte
+(`--hero-a` / `--hero-b`) cuyo extremo más claro conserva 5:1 de contraste.
+Las etiquetas dentro de una marca de color eligen tinta blanca o negra según la
+luminancia real del relleno, recalculada al cambiar de tema.
+
+### Movimiento
+
+El sitio se anima en cinco momentos, todos con la misma curva de salida:
+
+1. **Entrada en pantalla.** Tarjetas y bloques aparecen escalonados al hacer
+   scroll; las cifras cuentan hacia su valor y las barras crecen desde el eje.
+2. **Cambio de pestaña.** La vista saliente se difumina y sube; la entrante
+   entra desde abajo mientras una píldora de cristal se desliza en la
+   navegación.
+3. **Filtros.** Al aplicar uno, la barra destella y las tarjetas se atenúan y
+   vuelven ya recalculadas: la lectura anterior se mantiene hasta el relevo, sin
+   esqueleto en blanco ni salto de maquetación.
+4. **Ratón sobre el gráfico.** La marca señalada se realza con un resplandor y
+   las demás se atenúan; el globo de cristal aparece con rebote y sigue al
+   cursor. En el acumulado hay además una guía vertical con punto.
+5. **Cristal reactivo.** Botones y tarjeta principal llevan un reflejo que sigue
+   al puntero; el emblema tiene un destello periódico.
+
+Todo el movimiento se desactiva con `prefers-reduced-motion: reduce`, incluido
+el campo de fondo, y al imprimir.
+
+--- | --- | --- |
 | 1 | `#0073C4` | `#3D97E8` |
 | 2 | `#EB6834` | `#D95926` |
 | 3 | `#1BAF7A` | `#199E70` |

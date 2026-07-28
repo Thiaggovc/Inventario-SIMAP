@@ -123,6 +123,79 @@ export function sumValues(obj) {
   return t;
 }
 
+/* ------------------------------------------------------------ movimiento */
+
+const reducedQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+
+/** Respeta la preferencia del sistema de reducir el movimiento. */
+export const prefersReduced = () => !!(reducedQuery && reducedQuery.matches);
+
+/** Cuenta un número desde su valor previo hasta el nuevo. */
+export function animateNumber(el, to, { from = 0, duration = 900, format = fmt } = {}) {
+  const target = Number(to) || 0;
+  if (prefersReduced()) {
+    el.textContent = format(target);
+    return;
+  }
+  const start = performance.now();
+  const delta = target - from;
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    // Desaceleración suave: rápido al principio, asentado al final.
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = format(from + delta * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+let revealObserver = null;
+
+/**
+ * Marca los elementos `.reveal` cuando entran en pantalla. El escalonado lo
+ * aporta la variable `--i` de cada elemento.
+ */
+export function observeReveal(root) {
+  const targets = $$('.reveal', root);
+  if (prefersReduced() || typeof IntersectionObserver === 'undefined') {
+    for (const el of targets) {
+      el.classList.add('is-in');
+      if (typeof el._firstDraw === 'function') el._firstDraw();
+    }
+    return () => {};
+  }
+
+  if (!revealObserver) {
+    revealObserver = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.add('is-in');
+          revealObserver.unobserve(e.target);
+          if (typeof e.target._firstDraw === 'function') e.target._firstDraw();
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.06 }
+    );
+  }
+
+  for (const el of targets) revealObserver.observe(el);
+  return () => {
+    for (const el of targets) revealObserver.unobserve(el);
+  };
+}
+
+/** Publica la posición del cursor como variables CSS, para los reflejos. */
+export function trackPointer(el) {
+  const onMove = (e) => {
+    const b = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${((e.clientX - b.left) / b.width) * 100}%`);
+    el.style.setProperty('--my', `${((e.clientY - b.top) / b.height) * 100}%`);
+  };
+  el.addEventListener('pointermove', onMove);
+  return () => el.removeEventListener('pointermove', onMove);
+}
+
 /* ----------------------------------------------------------- descargas -- */
 
 export function downloadBlob(blob, filename) {

@@ -1,7 +1,7 @@
 /* Intercambio de archivos y publicación en el repositorio de GitHub. */
 
 import {
-  h, clear, fmt, fmtFechaHora, downloadBlob, stamp, toast, openModal, confirmDialog,
+  h, clear, fmt, fmtFechaHora, downloadBlob, stamp, toast, openModal, confirmDialog, observeReveal,
 } from '../util.js';
 import { store, replaceData, markPublished, discardDraft, stableStringify, itemTotal } from '../state.js';
 import { exportXlsx, exportJson, exportCsv, importFile, diffSummary } from '../workbook.js';
@@ -19,7 +19,13 @@ export function renderDatos(root) {
       h(
         'div',
         { class: 'view__headrow' },
-        h('div', {}, h('div', { class: 'kicker' }, 'Archivo y respaldo'), h('h1', { class: 'display' }, 'Datos y publicación')),
+        h(
+          'div',
+          { class: 'titleblock' },
+          h('span', { class: 'kicker kicker--pill' }, 'Archivo y respaldo'),
+          h('h1', { class: 'display display--xl' }, 'Datos y ', h('em', {}, 'publicación')),
+          h('div', { class: 'rule-grow', style: { width: '140px' } })
+        ),
         h('div', { class: 'meta-line' }, h('span', {}, 'Estado ', h('b', {}, store.dirty ? 'con cambios sin publicar' : 'sincronizado')))
       ),
       h(
@@ -32,10 +38,12 @@ export function renderDatos(root) {
 
   const grid = h('div', { class: 'grid' });
   shell.append(grid);
+  cardIndex = 0;
   grid.append(exportCard(), importCard(), githubCard(), estadoCard());
 
   clear(root).append(host);
-  return () => {};
+  const stopReveal = observeReveal(shell);
+  return () => stopReveal();
 }
 
 /* ---------------------------------------------------------- exportación -- */
@@ -424,10 +432,12 @@ function estadoCard() {
 
 /* ---------------------------------------------------------------- base --- */
 
+let cardIndex = 0;
+
 function card(title, sub, span, body) {
   return h(
     'section',
-    { class: `card ${span}` },
+    { class: `card glass reveal ${span}`, style: { '--i': cardIndex++ } },
     h('header', { class: 'card__head' }, h('div', {}, h('h3', { class: 'card__title' }, title), h('div', { class: 'card__sub' }, sub))),
     h('div', { class: 'card__body' }, body)
   );

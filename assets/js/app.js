@@ -1,11 +1,11 @@
 /* Arranque, cabecera y enrutado por hash. */
 
-import { h, clear, fmt, toast } from './util.js';
+import { h, clear, fmt, toast, prefersReduced } from './util.js';
 import { boot, store, subscribe } from './state.js';
 import { renderResumen } from './views/resumen.js';
 import { renderInventario } from './views/inventario.js';
 import { renderDatos } from './views/datos.js';
-import { hideTip } from './charts.js';
+import { hideTip, ensureDefs } from './charts.js';
 
 const RUTAS = [
   { id: 'resumen', label: 'Resumen', render: renderResumen },
@@ -32,7 +32,7 @@ function toggleTema() {
   document.documentElement.dataset.theme = nuevo;
   localStorage.setItem(LS_TEMA, nuevo);
   // Los gráficos leen los colores de las variables CSS: hay que redibujarlos.
-  requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('simap:redraw')));
 }
 
 /* ------------------------------------------------------------ cabecera -- */
@@ -46,6 +46,7 @@ function masthead() {
   );
 
   const nav = h('nav', { class: 'nav', 'aria-label': 'Secciones' });
+  nav.append(h('span', { class: 'nav__ink', 'aria-hidden': 'true' }));
   for (const r of RUTAS) {
     nav.append(
       h(
@@ -136,23 +137,61 @@ function rutaActual() {
   return RUTAS.find((r) => r.id === id) || RUTAS[0];
 }
 
-function navegar(nav, main) {
+/** Desliza la píldora de cristal hasta la pestaña activa. */
+function moverTinta(nav) {
+  const activo = nav.querySelector('.nav__link[aria-current="page"]');
+  const ink = nav.querySelector('.nav__ink');
+  if (!activo || !ink) return;
+  ink.style.width = `${activo.offsetWidth}px`;
+  ink.style.transform = `translateX(${activo.offsetLeft}px)`;
+}
+
+function navegar(nav, main, { primera = false } = {}) {
   const ruta = rutaActual();
   for (const btn of nav.querySelectorAll('.nav__link')) {
     if (btn.dataset.ruta === ruta.id) btn.setAttribute('aria-current', 'page');
     else btn.removeAttribute('aria-current');
   }
+  moverTinta(nav);
   hideTip();
-  if (typeof cleanup === 'function') cleanup();
-  cleanup = ruta.render(main) || null;
-  document.title = `${ruta.label} · Inventario de formaletería · Grupo SIMAP`;
-  window.scrollTo({ top: 0 });
+
+  const pintar = () => {
+    if (typeof cleanup === 'function') cleanup();
+    cleanup = ruta.render(main) || null;
+    document.title = `${ruta.label} · Inventario de formaletería · Grupo SIMAP`;
+    main.classList.remove('view-exit');
+    main.classList.remove('view-enter');
+    void main.offsetWidth;
+    if (!prefersReduced()) main.classList.add('view-enter');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  // La vista saliente se desvanece antes de montar la entrante.
+  if (primera || prefersReduced() || !main.firstChild) {
+    pintar();
+    return;
+  }
+  main.classList.add('view-exit');
+  setTimeout(pintar, 190);
 }
 
 /* -------------------------------------------------------------- arranque */
 
+/** Campo de luz que respira detrás del contenido. */
+function aurora() {
+  return h(
+    'div',
+    { class: 'aurora', 'aria-hidden': 'true' },
+    h('span', { class: 'aurora__blob aurora__blob--1' }),
+    h('span', { class: 'aurora__blob aurora__blob--2' }),
+    h('span', { class: 'aurora__blob aurora__blob--3' })
+  );
+}
+
 async function main() {
   initTema();
+  document.body.prepend(aurora());
+  ensureDefs();
   const root = document.getElementById('app');
   clear(root).append(h('div', { class: 'skeleton' }, 'Cargando inventario…'));
 
@@ -178,8 +217,25 @@ async function main() {
   clear(root).append(header, mainEl, colophon());
 
   if (!location.hash) location.hash = '#/resumen';
-  navegar(nav, mainEl);
+  navegar(nav, mainEl, { primera: true });
   window.addEventListener('hashchange', () => navegar(nav, mainEl));
+  window.addEventListener('resize', () => moverTinta(nav));
+
+  // La cabecera gana profundidad en cuanto la página se desplaza.
+  const onScroll = () => {
+    header.dataset.scrolled = String(window.scrollY > 4);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // Reflejo del cursor en cada botón de cristal.
+  document.addEventListener('pointermove', (e) => {
+    const btn = e.target.closest?.('.btn');
+    if (!btn) return;
+    const b = btn.getBoundingClientRect();
+    btn.style.setProperty('--mx', `${((e.clientX - b.left) / b.width) * 100}%`);
+    btn.style.setProperty('--my', `${((e.clientY - b.top) / b.height) * 100}%`);
+  }, { passive: true });
 
   // Aviso al cerrar con cambios que sólo existen en este navegador.
   window.addEventListener('beforeunload', (e) => {

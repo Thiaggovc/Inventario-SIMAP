@@ -89,7 +89,7 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
 
   return h(
     'section',
-    { class: 'filterbar', 'aria-label': 'Filtros del inventario' },
+    { class: 'filterbar glass reveal', 'aria-label': 'Filtros del inventario' },
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Buscar'), qInput),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Tipología'), tipoSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Ubicación / proyecto'), ubicSel),
