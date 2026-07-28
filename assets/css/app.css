@@ -228,19 +228,15 @@ a { color: var(--brand-deep); text-decoration-thickness: 1px; text-underline-off
   inset: -20vmax;
   z-index: -2;
   pointer-events: none;
-  filter: blur(60px) saturate(130%);
   opacity: 0.9;
+  contain: strict;
 }
 
 .aurora__blob {
   position: absolute;
   border-radius: 50%;
-  mix-blend-mode: multiply;
   will-change: transform;
 }
-
-:root[data-theme="dark"] .aurora__blob,
-:root:where(:not([data-theme="light"])) .aurora__blob { mix-blend-mode: screen; }
 
 .aurora__blob--1 {
   width: 55vmax; height: 55vmax;
@@ -275,11 +271,10 @@ a { color: var(--brand-deep); text-decoration-thickness: 1px; text-underline-off
 }
 
 /* Grano finísimo: quita el aspecto plástico de los degradados. */
-body::after {
+.aurora::after {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: -1;
   pointer-events: none;
   opacity: 0.032;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -290,11 +285,15 @@ body::after {
 .glass {
   position: relative;
   background: linear-gradient(155deg, var(--glass-strong), var(--glass) 58%);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius);
   box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-spec);
+}
+
+/* Reservado a lo que sí tiene contenido moviéndose por detrás. */
+.glass--blur {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 /* Filo especular superior: el brillo que da el aspecto de cristal grueso. */
@@ -328,9 +327,7 @@ body::after {
   gap: 8px;
   padding: 5px 13px 5px 10px;
   border-radius: 100px;
-  background: var(--glass);
-  backdrop-filter: blur(10px) saturate(160%);
-  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  background: var(--glass-strong);
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 var(--glass-spec);
   color: var(--ink-2);
@@ -605,8 +602,6 @@ body::after {
   border-radius: 100px;
   border: 1px solid var(--glass-edge);
   background: linear-gradient(150deg, var(--glass-strong), var(--glass));
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
   box-shadow: inset 0 1px 0 var(--glass-spec), var(--shadow-1);
   color: var(--ink);
   font-size: 12.5px;
@@ -679,9 +674,7 @@ body::after {
   padding: 9px 13px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--glass-edge);
-  background: var(--glass);
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  background: var(--glass-strong);
   box-shadow: inset 0 1px 0 var(--glass-spec);
   color: var(--ink);
   font: inherit;
@@ -870,7 +863,11 @@ body::after {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: var(--gap);
+  align-items: start;
 }
+
+/* Columna estrecha con varias tarjetas apiladas, para emparejar alturas. */
+.col-stack { display: grid; gap: var(--gap); align-content: start; }
 
 .col-12 { grid-column: span 12; }
 .col-8 { grid-column: span 8; }
@@ -880,6 +877,10 @@ body::after {
 @media (max-width: 1040px) {
   .col-8, .col-6, .col-4 { grid-column: span 12; }
 }
+
+/* El área de trazado nunca queda apretada ni sobra aire por debajo. */
+.card__body > div:first-child:not(.legend) { min-height: 0; }
+.chart-min { min-height: 220px; display: flex; flex-direction: column; justify-content: center; }
 
 .card {
   display: flex;
@@ -1371,7 +1372,139 @@ table.data tfoot td {
 /* Refresco de tarjetas al cambiar un filtro: nunca un esqueleto en blanco. */
 .is-refreshing { opacity: 0.45; transition: opacity 140ms var(--ease-soft); }
 
+/* ================================================= titular en escena ==== */
+
+/* Cada palabra sube desde detrás de su propia máscara. */
+.display .word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding: 0 0.06em 0.06em 0;
+  margin-right: 0.16em;
+}
+
+.display .word > span {
+  display: inline-block;
+  transform: translateY(105%);
+  animation: word-rise 900ms var(--ease-out) both;
+  animation-delay: calc(var(--w, 0) * 95ms);
+}
+
+@keyframes word-rise {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+
+/* La palabra acentuada respira y arrastra un halo del color de marca. */
+.display .word--accent { position: relative; }
+
+.display .word--accent > span {
+  background: linear-gradient(104deg, var(--brand-deep), var(--brand) 30%, var(--series-1) 52%, var(--brand-lift) 72%, var(--brand-deep));
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: word-rise 900ms var(--ease-out) both, title-sheen 7s linear 900ms infinite;
+  animation-delay: calc(var(--w, 0) * 95ms), calc(var(--w, 0) * 95ms + 900ms);
+}
+
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .display .word--accent > span { color: var(--brand-deep); background: none; }
+}
+
+.display .word--accent::after {
+  content: "";
+  position: absolute;
+  inset: 12% -6% 16% -6%;
+  z-index: -1;
+  border-radius: 40px;
+  background: radial-gradient(60% 100% at 50% 50%, var(--brand-wash), transparent 72%);
+  opacity: 0;
+  animation: halo 5.5s var(--ease-soft) 1.4s infinite;
+}
+
+@keyframes halo {
+  0%, 100% { opacity: 0; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.titleblock { position: relative; }
+
 /* ========================================== capa de interacción viva ==== */
+
+/* Controles dentro de la cabecera de cada gráfico. */
+.chart-tools { flex-wrap: wrap; justify-content: flex-end; }
+
+.mini-select {
+  appearance: none;
+  padding: 6px 26px 6px 11px;
+  border-radius: 100px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-strong);
+  box-shadow: inset 0 1px 0 var(--glass-spec);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  transition: border-color var(--dur-1) var(--ease-soft), transform var(--dur-1) var(--ease-spring),
+    color var(--dur-1) var(--ease-soft);
+}
+.mini-select:hover { transform: translateY(-1px); border-color: var(--rule-strong); color: var(--ink); }
+.mini-select:focus { outline: none; border-color: var(--brand); box-shadow: inset 0 1px 0 var(--glass-spec), var(--glow-brand); }
+
+/* Leyenda conmutable: apagar una serie la retira del gráfico. */
+.legend__item[aria-pressed] { border: 1px solid var(--glass-edge); }
+.legend__item[aria-pressed="false"] {
+  color: var(--ink-3);
+  background: transparent;
+  box-shadow: none;
+}
+.legend__item[aria-pressed="false"] .legend__swatch {
+  background: none !important;
+  box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+.legend__item[aria-pressed="false"]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 12px;
+  top: 50%;
+  height: 1px;
+  background: var(--ink-3);
+  opacity: 0.55;
+}
+.legend__item { position: relative; }
+
+/* Barra que puede pulsarse para filtrar por su categoría. */
+.chart--pickable .chart__hit { cursor: pointer; }
+
+.chart__row.is-picked .chart__mark { filter: url(#simap-glow); }
+
+.pick-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pick-hint::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(150deg, var(--series-1-lift), var(--series-1));
+  animation: pulse-soft 2.6s var(--ease-soft) infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.82); opacity: 0.65; }
+}
 
 /* Barra de avance de lectura, pegada al filo inferior de la cabecera. */
 .scrollbar-read {
@@ -1462,8 +1595,6 @@ table.data tbody tr td:first-child::before {
 }
 
 table.data tbody tr:hover td:first-child::before { transform: scaleY(1); }
-table.data tbody tr:hover td { transform: translateX(2px); }
-table.data tbody tr td { transition: transform var(--dur-1) var(--ease-out); }
 
 /* Cabeceras ordenables: la flecha se asienta con rebote. */
 .sortable::after { display: inline-block; transition: transform var(--dur-2) var(--ease-spring), opacity var(--dur-1); }
@@ -1668,7 +1799,6 @@ table.data tbody tr td { transition: transform var(--dur-1) var(--ease-out); }
 @media print {
   .masthead, .nav, .chart-tools, .filterbar__actions, .toasts, .aurora { display: none !important; }
   body { background: #fff; }
-  body::after { display: none; }
   .card, .tile { break-inside: avoid; box-shadow: none; backdrop-filter: none; border: 1px solid #ddd; }
   .reveal { opacity: 1 !important; transform: none !important; }
 }

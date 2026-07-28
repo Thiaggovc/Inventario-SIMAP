@@ -211,6 +211,22 @@ export function observeReveal(root) {
   };
 }
 
+/**
+ * Titular por palabras: cada una sube desde detrás de su máscara, escalonada.
+ * La última palabra lleva el degradado de marca y su halo.
+ */
+export function displayTitle(texto, { acentuar = 1 } = {}) {
+  const palabras = String(texto).trim().split(/\s+/);
+  const corte = palabras.length - acentuar;
+  return palabras.map((palabra, i) =>
+    h(
+      'span',
+      { class: `word ${i >= corte ? 'word--accent' : ''}`, style: { '--w': i } },
+      h('span', {}, palabra)
+    )
+  );
+}
+
 /** Publica la posición del cursor como variables CSS, para los reflejos. */
 export function trackPointer(el) {
   const onMove = (e) => {

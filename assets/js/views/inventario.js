@@ -1,6 +1,6 @@
 /* Inventario detallado: consulta, alta, edición y baja de referencias. */
 
-import { h, clear, fmt, fmtFecha, toInt, openModal, confirmDialog, toast, sumValues, slug, observeReveal, prefersReduced } from '../util.js';
+import { h, clear, fmt, fmtFecha, toInt, openModal, confirmDialog, toast, sumValues, slug, observeReveal, prefersReduced, displayTitle } from '../util.js';
 import { store, commit, filterItems, itemTotal, itemPropTotal, itemDescuadre, newItem } from '../state.js';
 import { filters, filterBar, onFilters } from '../filters.js';
 
@@ -26,7 +26,7 @@ export function renderInventario(root) {
           'div',
           { class: 'titleblock' },
           h('span', { class: 'kicker kicker--pill' }, 'Registro maestro'),
-          h('h1', { class: 'display display--xl' }, 'Inventario de ', h('em', {}, 'formaletería')),
+          h('h1', { class: 'display display--xl' }, displayTitle('Inventario de formaletería')),
           h('div', { class: 'rule-grow', style: { width: '150px' } })
         ),
         h(
@@ -45,7 +45,8 @@ export function renderInventario(root) {
   );
 
   const noteEl = h('div', { class: 'filterbar__note' });
-  shell.append(filterBar(data, { note: noteEl }));
+  const barra = filterBar(data, { note: noteEl });
+  shell.append(barra);
 
   const card = h('section', { class: 'card glass reveal' });
   shell.append(card);
@@ -95,6 +96,7 @@ export function renderInventario(root) {
   return () => {
     off();
     stopReveal();
+    barra._dispose();
   };
 }
 

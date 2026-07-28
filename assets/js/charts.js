@@ -369,7 +369,7 @@ function inkOn(cssColor) {
 
 /* ------------------------------------------------- barras horizontales -- */
 
-export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true }) {
+export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null }) {
   ensureDefs();
   clear(host);
   if (!rows.length) return emptyState(host);
@@ -387,7 +387,7 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26
   const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
 
   const root = svg('svg', {
-    class: 'chart',
+    class: `chart ${onPick ? 'chart--pickable' : ''}`,
     viewBox: `0 0 ${width} ${height}`,
     width,
     height,
@@ -425,10 +425,26 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26
     marks.forEach((m) => grow(m, { axis: 'x', delay: i * STAGGER, animate }));
     fadeUp(val, { delay: i * STAGGER + 220, animate });
 
+    if (picked !== null && String(picked) === label) row.classList.add('is-picked');
+
     bindRow(root, hit, row, () => ({
       title: label,
-      rows: [{ label: unidad, value: fmt(r.value), color: swatch }, ...(r.extra || [])],
+      rows: [
+        { label: unidad, value: fmt(r.value), color: swatch },
+        ...(r.extra || []),
+        ...(onPick && !r.isOther ? [{ label: 'Pulse para filtrar', value: '↵' }] : []),
+      ],
     }));
+
+    if (onPick && !r.isOther) {
+      hit.addEventListener('click', () => onPick(r));
+      hit.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPick(r);
+        }
+      });
+    }
 
     root.append(row);
   });
@@ -784,21 +800,46 @@ export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate 
 
 /* ------------------------------------------------------------- leyenda -- */
 
-export function legend(series, { line = false } = {}) {
+/**
+ * Leyenda. Con `onToggle` cada píldora se vuelve un interruptor: apagar una
+ * serie la retira del gráfico, que es la forma más directa de elegir qué datos
+ * mirar sin salir de la tarjeta.
+ */
+export function legend(series, { line = false, hidden = null, onToggle = null } = {}) {
   return h(
     'div',
-    { class: 'legend', role: 'list' },
-    series.map((s, i) =>
-      h(
-        'span',
-        { class: 'legend__item', role: 'listitem', style: { '--i': i }, dataset: s.id ? { serie: s.id } : {} },
-        h('span', {
-          class: `legend__swatch ${line ? 'legend__swatch--line' : ''}`,
-          style: { background: `linear-gradient(150deg, ${s.colorLift || s.color}, ${s.color})` },
-        }),
+    { class: 'legend', role: onToggle ? 'group' : 'list', 'aria-label': onToggle ? 'Series visibles' : null },
+    series.map((s, i) => {
+      const apagada = hidden ? hidden.has(s.id) : false;
+      const swatch = h('span', {
+        class: `legend__swatch ${line ? 'legend__swatch--line' : ''}`,
+        style: { background: `linear-gradient(150deg, ${s.colorLift || s.color}, ${s.color})` },
+      });
+
+      if (!onToggle) {
+        return h(
+          'span',
+          { class: 'legend__item', role: 'listitem', style: { '--i': i }, dataset: s.id ? { serie: s.id } : {} },
+          swatch,
+          s.nombre
+        );
+      }
+
+      return h(
+        'button',
+        {
+          class: 'legend__item',
+          type: 'button',
+          style: { '--i': i },
+          dataset: s.id ? { serie: s.id } : {},
+          'aria-pressed': String(!apagada),
+          title: apagada ? `Mostrar ${s.nombre}` : `Ocultar ${s.nombre}`,
+          onclick: () => onToggle(s.id),
+        },
+        swatch,
         s.nombre
-      )
-    )
+      );
+    })
   );
 }
 
@@ -813,9 +854,9 @@ function emptyState(host) {
  * La tabla es la vía de lectura garantizada: ningún valor depende del tooltip
  * ni del color, que es además el alivio exigido por los tonos claros.
  */
-export function chartCard({ title, sub, span = 'col-6', legendEl, render, table, note, index = 0 }) {
+export function chartCard({ title, sub, span = 'col-6', legendEl, render, table, note, index = 0, tools = null, minHeight = false }) {
   const body = h('div', { class: 'card__body' });
-  const plot = h('div', {});
+  const plot = h('div', { class: minHeight ? 'chart-min' : '' });
   const tableWrap = h('div', { class: 'table-wrap hidden' });
   let showingTable = false;
   let drawn = false;
@@ -878,15 +919,20 @@ export function chartCard({ title, sub, span = 'col-6', legendEl, render, table,
       'header',
       { class: 'card__head' },
       h('div', {}, h('h3', { class: 'card__title' }, title), sub ? h('div', { class: 'card__sub' }, sub) : null),
-      h('div', { class: 'chart-tools' }, toggle)
+      h('div', { class: 'chart-tools' }, tools || null, toggle)
     ),
     body
   );
 
-  card._redraw = () => draw({ animate: false });
-  // El primer trazo se anima cuando la tarjeta entra en pantalla.
+  card._redraw = (o) => draw({ animate: false, ...(o || {}) });
+  // El primer trazo se anima cuando la tarjeta entra en pantalla…
   card._firstDraw = () => {
     if (!drawn) draw({ animate: true });
+  };
+  /* …y si nunca llega a entrar, se dibuja igualmente sin animación: una
+     tarjeta con el gráfico vacío se encoge y descuadra el alto de la página. */
+  card._ensure = () => {
+    if (!drawn) draw({ animate: false });
   };
   return card;
 }

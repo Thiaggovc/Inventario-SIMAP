@@ -88,7 +88,19 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     onchange: (e) => setFilter({ soloDescuadre: e.target.checked }),
   });
 
-  return h(
+  /* Los filtros también se aplican desde fuera —al pulsar una barra del
+     tablero—, así que los controles se sincronizan con el estado real. */
+  const sincronizar = () => {
+    if (qInput.value !== filters.q) qInput.value = filters.q;
+    tipoSel.value = filters.tipos[0] || '';
+    ubicSel.value = filters.ubicacion;
+    propSel.value = filters.propietario;
+    compraSel.value = filters.compra;
+    descuadre.checked = filters.soloDescuadre;
+  };
+  const off = onFilters(sincronizar);
+  // La barra se destruye con su vista; el desuscriptor viaja con el elemento.
+  const bar = h(
     'section',
     { class: 'filterbar glass reveal', 'aria-label': 'Filtros del inventario' },
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Buscar'), qInput),
@@ -112,4 +124,7 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     // La nota la aporta cada vista: llega ya con su clase, no se vuelve a envolver.
     note || null
   );
+
+  bar._dispose = off;
+  return bar;
 }

@@ -228,12 +228,22 @@ async function main() {
   window.addEventListener('hashchange', () => navegar(nav, mainEl));
   window.addEventListener('resize', () => moverTinta(nav));
 
-  // La cabecera gana profundidad en cuanto la página se desplaza.
-  const onScroll = () => {
+  /* Un solo oyente de scroll para la cabecera y el avance de lectura, medido
+     una vez por fotograma: dos oyentes separados leían el layout dos veces. */
+  const barra = header.querySelector('.scrollbar-read');
+  let rafScroll = 0;
+  const medir = () => {
+    rafScroll = 0;
     header.dataset.scrolled = String(window.scrollY > 4);
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    barra.style.width = max > 40 ? `${Math.min(100, (window.scrollY / max) * 100)}%` : '0%';
+  };
+  const onScroll = () => {
+    if (!rafScroll) rafScroll = requestAnimationFrame(medir);
   };
   window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  window.addEventListener('resize', onScroll, { passive: true });
+  medir();
 
   // Reflejo del cursor en cada botón de cristal.
   document.addEventListener('pointermove', (e) => {
@@ -264,15 +274,6 @@ async function main() {
     setTimeout(() => onda.remove(), 640);
   });
 
-  // Avance de lectura de la página.
-  const barra = header.querySelector('.scrollbar-read');
-  const avance = () => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    barra.style.width = max > 40 ? `${Math.min(100, (window.scrollY / max) * 100)}%` : '0%';
-  };
-  window.addEventListener('scroll', avance, { passive: true });
-  window.addEventListener('resize', avance, { passive: true });
-  avance();
 
   // Aviso al cerrar con cambios que sólo existen en este navegador.
   window.addEventListener('beforeunload', (e) => {

@@ -1,6 +1,6 @@
 /* Tablero de resumen: la lectura de la situación actual en un vistazo. */
 
-import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced } from '../util.js';
+import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced, displayTitle } from '../util.js';
 import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre } from '../state.js';
 import { filters, filterBar, onFilters, hasActiveFilters, setFilter } from '../filters.js';
 import {
@@ -36,7 +36,7 @@ export function renderResumen(root) {
         'div',
         { class: 'titleblock' },
         h('span', { class: 'kicker kicker--pill' }, data.meta.empresa || 'Grupo SIMAP'),
-        h('h1', { class: 'display display--xl' }, 'Panorama del ', h('em', {}, 'inventario')),
+        h('h1', { class: 'display display--xl' }, displayTitle('Panorama del inventario')),
         h('div', { class: 'rule-grow', style: { width: '160px' } })
       ),
       h('div', { class: 'meta-line' })
@@ -58,7 +58,8 @@ export function renderResumen(root) {
   );
 
   const noteEl = h('div', { class: 'filterbar__note' });
-  shell.append(filterBar(data, { note: noteEl }));
+  const barra = filterBar(data, { note: noteEl });
+  shell.append(barra);
 
   const tiles = h('section', { class: 'tiles' });
   const grid = h('div', { class: 'grid' });
@@ -72,10 +73,15 @@ export function renderResumen(root) {
     const s = summarize(data, items, filters.ubicacion);
     renderNote(noteEl, data, items, s);
     renderTiles(tiles, data, s, { animate, from: prevUnidades });
-    renderCards(grid, data, items, s);
+    renderCards(grid, data, items, s, () => paint({ animate: false }));
     prevUnidades = s.unidades;
     stopReveal();
     stopReveal = observeReveal(shell);
+    /* Tras el barrido de aparición, lo que quedó fuera de pantalla se resuelve
+       igual: gráficos dibujados y cifras escritas, sin animación. */
+    requestAnimationFrame(() => {
+      for (const el of shell.querySelectorAll('.tile, .card')) el._ensure?.();
+    });
   };
 
   paint();
@@ -109,6 +115,7 @@ export function renderResumen(root) {
     offFilters();
     stopResize();
     stopReveal();
+    barra._dispose();
   };
 }
 
@@ -196,8 +203,16 @@ function tile({ label, value, num = null, from = 0, animate = true, note, hero =
   );
 
   if (num !== null && animate) {
-    // El conteo arranca cuando la tarjeta entra en pantalla, no antes.
-    el._firstDraw = () => animateNumber(valueEl, num, { from, duration: hero ? 1100 : 800 });
+    // El conteo arranca cuando la tarjeta entra en pantalla, no antes…
+    el._firstDraw = () => {
+      el._ensure = null;
+      animateNumber(valueEl, num, { from, duration: hero ? 1100 : 800 });
+    };
+    /* …pero si se filtra con la página desplazada, la tarjeta nunca entra y la
+       cifra se quedaría en el valor anterior. Entonces se escribe sin contar. */
+    el._ensure = () => {
+      valueEl.textContent = fmt(num);
+    };
     valueEl.textContent = fmt(from);
   }
 
@@ -207,7 +222,31 @@ function tile({ label, value, num = null, from = 0, animate = true, note, hero =
 
 /* -------------------------------------------------------------- tarjetas */
 
-function renderCards(grid, data, items, s) {
+/* Estado propio del tablero: qué series se miran y cuántas filas se listan.
+   Vive fuera de `renderCards` para sobrevivir a los redibujados. */
+const vista = {
+  sedesOcultas: new Set(),
+  topTipos: TOP_TIPOS,
+  topMedidas: TOP_MEDIDAS,
+};
+
+function selectorTop(valor, total, onChange) {
+  const opciones = [10, 15, 25, 40].filter((n) => n < total);
+  opciones.push(total);
+  return h(
+    'select',
+    {
+      class: 'mini-select',
+      'aria-label': 'Cuántas filas mostrar',
+      onchange: (e) => onChange(Number(e.target.value)),
+    },
+    opciones.map((n) =>
+      h('option', { value: n, selected: n === valor }, n >= total ? `Todas (${fmt(total)})` : `Top ${n}`)
+    )
+  );
+}
+
+function renderCards(grid, data, items, s, repintar) {
   clear(grid);
 
   // Cada entidad conserva su ranura de color; el degradado sólo aporta volumen.
@@ -215,42 +254,65 @@ function renderCards(grid, data, items, s) {
   const ubSeries = data.ubicaciones.map(dress);
   const prSeries = data.propietarios.map(dress);
 
+  const visibles = ubSeries.filter((u) => !vista.sedesOcultas.has(u.id));
+  const dependenSede = [];
+
+  /* Apagar una sede la retira de los dos gráficos que la usan, a la vez. */
+  const alternarSede = (id) => {
+    if (vista.sedesOcultas.has(id)) vista.sedesOcultas.delete(id);
+    else if (vista.sedesOcultas.size < ubSeries.length - 1) vista.sedesOcultas.add(id);
+    else return;
+    repintar();
+  };
+
   /* 1 · reparto por sede ------------------------------------------------- */
-  const repartoParts = ubSeries
+  const repartoParts = visibles
     .map((u) => ({ ...u, value: s.porUbicacion.find((x) => x.id === u.id)?.value || 0 }))
     .filter((p) => p.value > 0);
   const totalUb = repartoParts.reduce((a, p) => a + p.value, 0);
 
-  grid.append(
-    chartCard({
-      title: 'Dónde está el inventario',
-      index: 0,
-      sub: 'Reparto de unidades entre sedes y proyectos, sobre las referencias filtradas',
-      span: 'col-12',
-      legendEl: legend(ubSeries),
-      render: (el, o) => shareBar(el, { parts: repartoParts, unidad: 'unidades', ...o }),
-      table: () =>
-        simpleTable(
-          [
-            { key: 'sede', label: 'Sede / proyecto', get: (r) => r.nombre },
-            { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
-            { key: 'p', label: 'Participación', num: true, get: (r) => (totalUb ? ((r.value / totalUb) * 100).toFixed(1) + ' %' : '—') },
-          ],
-          repartoParts,
-          { sede: 'Total', u: fmt(totalUb), p: '100,0 %' }
-        ),
-    })
-  );
+  const cardReparto = chartCard({
+    title: 'Dónde está el inventario',
+    index: 0,
+    sub: 'Reparto de unidades entre sedes y proyectos · pulse una sede en la leyenda para apartarla',
+    span: 'col-12',
+    legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
+    render: (el, o) => shareBar(el, { parts: repartoParts, unidad: 'unidades', ...o }),
+    table: () =>
+      simpleTable(
+        [
+          { key: 'sede', label: 'Sede / proyecto', get: (r) => r.nombre },
+          { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
+          { key: 'p', label: 'Participación', num: true, get: (r) => (totalUb ? ((r.value / totalUb) * 100).toFixed(1) + ' %' : '—') },
+        ],
+        repartoParts,
+        { sede: 'Total', u: fmt(totalUb), p: '100,0 %' }
+      ),
+  });
+  dependenSede.push(cardReparto);
+  grid.append(cardReparto);
 
   /* 2 · tipologías ------------------------------------------------------- */
-  const tipoRows = topRows(s.porTipo, TOP_TIPOS);
+  const tipoRows = topRows(s.porTipo, vista.topTipos);
   grid.append(
     chartCard({
       title: 'Existencias por tipología',
       index: 1,
-      sub: `Las ${Math.min(TOP_TIPOS, s.porTipo.length)} tipologías de mayor volumen`,
+      sub: 'Pulse una barra para filtrar el tablero por esa tipología',
       span: 'col-8',
-      render: (el, o) => barsH(el, { rows: tipoRows, unidad: 'unidades', maxLabel: 26, ...o }),
+      tools: selectorTop(vista.topTipos, s.porTipo.length, (n) => {
+        vista.topTipos = n;
+        repintar();
+      }),
+      render: (el, o) =>
+        barsH(el, {
+          rows: tipoRows,
+          unidad: 'unidades',
+          maxLabel: 26,
+          picked: filters.tipos[0] || null,
+          onPick: (r) => setFilter({ tipos: filters.tipos[0] === r.key ? [] : [r.key] }),
+          ...o,
+        }),
       table: () =>
         simpleTable(
           [
@@ -260,70 +322,75 @@ function renderCards(grid, data, items, s) {
           s.porTipo,
           { t: 'Total', u: fmt(s.unidades) }
         ),
-      note: s.porTipo.length > TOP_TIPOS ? `La tabla incluye las ${s.porTipo.length} tipologías completas.` : null,
+      note: h('span', { class: 'pick-hint' }, `La tabla incluye las ${fmt(s.porTipo.length)} tipologías completas.`),
     })
   );
 
-  /* 3 · propietario ------------------------------------------------------ */
+  /* 3 · columna estrecha: propietario y consistencia --------------------- */
   const propParts = prSeries
     .map((p) => ({ ...p, value: s.porPropietario.find((x) => x.id === p.id)?.value || 0 }))
     .filter((p) => p.value > 0);
   const totalPr = propParts.reduce((a, p) => a + p.value, 0);
 
-  grid.append(
-    chartCard({
-      title: 'Propiedad de los activos',
-      index: 2,
-      sub: 'Unidades asignadas a cada propietario',
-      span: 'col-4',
-      legendEl: legend(propParts),
-      render: (el, o) =>
-        barsH(el, {
-          rows: propParts.map((p) => ({ key: p.nombre, value: p.value, slot: p.slot, serie: p.id })),
-          unidad: 'unidades',
-          maxLabel: 20,
-          ...o,
-        }),
-      table: () =>
-        simpleTable(
-          [
-            { key: 'p', label: 'Propietario', get: (r) => r.nombre },
-            { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
-            { key: 's', label: 'Part.', num: true, get: (r) => (totalPr ? ((r.value / totalPr) * 100).toFixed(1) + ' %' : '—') },
-          ],
-          propParts,
-          { p: 'Total', u: fmt(totalPr), s: '100,0 %' }
-        ),
-    })
-  );
+  const cardProp = chartCard({
+    title: 'Propiedad de los activos',
+    index: 2,
+    sub: 'Unidades asignadas a cada propietario',
+    span: '',
+    minHeight: true,
+    legendEl: legend(propParts),
+    render: (el, o) =>
+      barsH(el, {
+        rows: propParts.map((p) => ({ key: p.nombre, value: p.value, slot: p.slot, serie: p.id })),
+        unidad: 'unidades',
+        maxLabel: 20,
+        picked: null,
+        onPick: (r) => {
+          const dueno = propParts.find((x) => x.nombre === r.key);
+          if (dueno) setFilter({ propietario: filters.propietario === dueno.id ? '' : dueno.id });
+        },
+        ...o,
+      }),
+    table: () =>
+      simpleTable(
+        [
+          { key: 'p', label: 'Propietario', get: (r) => r.nombre },
+          { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
+          { key: 's', label: 'Part.', num: true, get: (r) => (totalPr ? ((r.value / totalPr) * 100).toFixed(1) + ' %' : '—') },
+        ],
+        propParts,
+        { p: 'Total', u: fmt(totalPr), s: '100,0 %' }
+      ),
+  });
+
+  grid.append(h('div', { class: 'col-stack col-4' }, cardProp, consistencyCard(data, s)));
 
   /* 4 · tipología × sede ------------------------------------------------- */
-  const cross = crossTipoUbicacion(items, data.ubicaciones, 12);
-  grid.append(
-    chartCard({
-      title: 'Tipología por sede',
-      index: 3,
-      sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
-      span: 'col-12',
-      legendEl: legend(ubSeries),
-      render: (el, o) => stackedBarsH(el, { rows: cross, series: ubSeries, unidad: 'unidades', ...o }),
-      table: () =>
-        simpleTable(
-          [
-            { key: 't', label: 'Tipología', get: (r) => r.key },
-            ...ubSeries.map((u) => ({ key: u.id, label: u.nombre, num: true, get: (r) => fmt(r.parts[u.id] || 0) })),
-            { key: 'tot', label: 'Total', num: true, get: (r) => fmt(r.total) },
-          ],
-          cross
-        ),
-    })
-  );
+  const cross = crossTipoUbicacion(items, data.ubicaciones.filter((u) => !vista.sedesOcultas.has(u.id)), 12);
+  const cardCross = chartCard({
+    title: 'Tipología por sede',
+    index: 3,
+    sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
+    span: 'col-12',
+    legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
+    render: (el, o) => stackedBarsH(el, { rows: cross, series: visibles, unidad: 'unidades', ...o }),
+    table: () =>
+      simpleTable(
+        [
+          { key: 't', label: 'Tipología', get: (r) => r.key },
+          ...visibles.map((u) => ({ key: u.id, label: u.nombre, num: true, get: (r) => fmt(r.parts[u.id] || 0) })),
+          { key: 'tot', label: 'Total', num: true, get: (r) => fmt(r.total) },
+        ],
+        cross
+      ),
+  });
+  dependenSede.push(cardCross);
+  grid.append(cardCross);
 
   /* 5 · compras ---------------------------------------------------------- */
   const compras = s.porCompra;
   const compraRows = compras.map((c) => ({
     label: fmtFecha(c.fecha, 'mes'),
-    label2: '',
     title: `${c.etiqueta} · ${fmtFecha(c.fecha)}`,
     value: c.value,
   }));
@@ -371,13 +438,17 @@ function renderCards(grid, data, items, s) {
   );
 
   /* 6 · medidas ---------------------------------------------------------- */
-  const medidaRows = topRows(s.porMedida, TOP_MEDIDAS);
+  const medidaRows = topRows(s.porMedida, vista.topMedidas);
   grid.append(
     chartCard({
       title: 'Medidas con mayor existencia',
       index: 6,
       sub: `${fmt(s.medidas)} medidas distintas en las referencias filtradas`,
-      span: 'col-8',
+      span: 'col-12',
+      tools: selectorTop(vista.topMedidas, s.porMedida.length, (n) => {
+        vista.topMedidas = n;
+        repintar();
+      }),
       render: (el, o) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 26, ...o }),
       table: () =>
         simpleTable(
@@ -385,11 +456,10 @@ function renderCards(grid, data, items, s) {
             { key: 'm', label: 'Medida', get: (r) => r.key },
             { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
           ],
-          s.porMedida.slice(0, 120)
+          s.porMedida.slice(0, 200)
         ),
-      note: s.porMedida.length > 120 ? 'La tabla muestra las 120 medidas de mayor volumen.' : null,
-    }),
-    consistencyCard(data, s)
+      note: s.porMedida.length > 200 ? 'La tabla muestra las 200 medidas de mayor volumen.' : null,
+    })
   );
 }
 
@@ -400,6 +470,7 @@ function topRows(rows, n) {
   head.push({
     key: `Otras ${tail.length}`,
     value: tail.reduce((a, r) => a + r.value, 0),
+    isOther: true,
   });
   return head;
 }
@@ -486,7 +557,7 @@ function consistencyCard(data, s) {
 
   return h(
     'section',
-    { class: 'card glass reveal col-4', style: { '--i': 7 } },
+    { class: 'card glass reveal', style: { '--i': 7 } },
     h(
       'header',
       { class: 'card__head' },

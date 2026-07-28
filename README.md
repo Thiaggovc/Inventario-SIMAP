@@ -165,6 +165,22 @@ assets/js/
 scripts/validar-datos.mjs      validación usada por CI
 ```
 
+### Rendimiento
+
+El desenfoque de fondo es lo más caro de un lenguaje de cristal, así que se
+reserva a lo que de verdad tiene contenido moviéndose por detrás: cabecera,
+encabezado fijo de tabla, globo y diálogos. Tarjetas y fichas conservan la
+translucidez y el filo especular, pero sin desenfocar: detrás sólo hay un
+degradado liso y el resultado es indistinguible. El campo de fondo tampoco
+fusiona capas ni aplica filtros, y el grano vive dentro de él en vez de en una
+capa fija a pantalla completa. Los oyentes de scroll se agrupan en uno solo,
+medido una vez por fotograma.
+
+Medido en este entorno sin GPU y con rasterizado por software, el tiempo mediano
+de fotograma durante un desplazamiento completo bajó de **100 ms a 33 ms**, y los
+elementos con desenfoque de fondo pasaron de 18 a 4. Con GPU la diferencia es
+menor en términos absolutos, pero el reparto de trabajo es el mismo.
+
 ### Decisiones técnicas
 
 - **Cero dependencias.** No hay build, ni npm, ni CDN. El `.xlsx` se arma y se
@@ -190,8 +206,9 @@ titulares destacan por tamaño y peso, no por cambiar de letra.
   Detrás respira un campo de luz azul en movimiento muy lento, con un grano
   finísimo que evita el aspecto plástico.
 - **Titulares.** Antetítulo en píldora de cristal y titular en versales, peso
-  800 y hasta 58 px, con la palabra final en degradado animado y una regla que
-  se despliega debajo.
+  800 y hasta 58 px. Cada palabra sube desde detrás de su propia máscara,
+  escalonada; la última lleva el degradado de marca, un barrido de luz continuo
+  y un halo que late detrás.
 - **Etiquetas largas.** Las tipologías llegan a 46 caracteres. En vez de
   recortarlas —lo que escondía justo la parte que las distingue— se reparten en
   dos líneas sin cortar palabras, y la fila del gráfico crece para acogerlas.
@@ -245,7 +262,12 @@ de salida:
    que se desplaza.
 6. **Leyenda viva.** Señalar una píldora de la leyenda aísla esa sede dentro del
    gráfico y retira el resto, sin tocar los filtros.
-7. **Detalle en todas partes.** Barra de avance de lectura en la cabecera;
+7. **Elegir qué mirar.** Cada píldora de la leyenda es un interruptor: apagar
+   una sede la retira del reparto y del cruce por tipología a la vez. Los
+   gráficos de tipologías y medidas llevan un selector de cuántas filas listar
+   (10, 15, 25, 40 o todas). Y pulsar una barra filtra el tablero entero por esa
+   tipología o propietario; volver a pulsarla lo deshace.
+8. **Detalle en todas partes.** Barra de avance de lectura en la cabecera;
    tarjetas con barrido de luz al aparecer y al pasar el cursor; filas de tabla
    con acento que entra por la izquierda; flechas de ordenación con rebote;
    casilla de verificación que dibuja su marca; avisos con cuenta atrás visible;

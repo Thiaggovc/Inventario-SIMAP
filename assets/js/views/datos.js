@@ -1,7 +1,7 @@
 /* Intercambio de archivos y publicación en el repositorio de GitHub. */
 
 import {
-  h, clear, fmt, fmtFechaHora, downloadBlob, stamp, toast, openModal, confirmDialog, observeReveal,
+  h, clear, fmt, fmtFechaHora, downloadBlob, stamp, toast, openModal, confirmDialog, observeReveal, displayTitle,
 } from '../util.js';
 import { store, replaceData, markPublished, discardDraft, stableStringify, itemTotal } from '../state.js';
 import { exportXlsx, exportJson, exportCsv, importFile, diffSummary } from '../workbook.js';
@@ -23,7 +23,7 @@ export function renderDatos(root) {
           'div',
           { class: 'titleblock' },
           h('span', { class: 'kicker kicker--pill' }, 'Archivo y respaldo'),
-          h('h1', { class: 'display display--xl' }, 'Datos y ', h('em', {}, 'publicación')),
+          h('h1', { class: 'display display--xl' }, displayTitle('Datos y publicación')),
           h('div', { class: 'rule-grow', style: { width: '140px' } })
         ),
         h('div', { class: 'meta-line' }, h('span', {}, 'Estado ', h('b', {}, store.dirty ? 'con cambios sin publicar' : 'sincronizado')))
