@@ -181,25 +181,38 @@ scripts/validar-datos.mjs      validación usada por CI
 ### Identidad visual
 
 Editorial en la estructura, *liquid glass* en la superficie. Blanco, negro y el
-azul corporativo `#0073C4`, con serif para los titulares y sans para los datos.
+azul corporativo `#0073C4` para la interfaz, con serif para los titulares y sans
+para los datos.
 
 - **Cristal.** Cabecera, filtros, tarjetas, tablas, globos y diálogos son
   paneles translúcidos con desenfoque de fondo, filo especular y sombra suave.
   Detrás respira un campo de luz azul en movimiento muy lento, con un grano
   finísimo que evita el aspecto plástico.
-- **Titulares.** Antetítulo en píldora de cristal, titular serif con una palabra
-  acentuada en degradado animado y una regla que se despliega debajo.
+- **Titulares.** Antetítulo en píldora de cristal y titular en versales serif
+  negrita, con la palabra final en degradado animado y una regla que se
+  despliega debajo.
 - **Gráficos con degradado.** Cada serie se pinta con un degradado propio de su
   matiz más un velo especular. El matiz sigue identificando a la entidad: el
   degradado aporta volumen, nunca codifica magnitud.
 
-| Ranura | Claro | Oscuro | Extremo claro (claro / oscuro) |
-| --- | --- | --- | --- |
-| 1 | `#0073C4` | `#3D97E8` | `#4AA8EA` / `#7EBCF3` |
-| 2 | `#EB6834` | `#D95926` | `#F79A70` / `#EF8558` |
-| 3 | `#1BAF7A` | `#199E70` | `#55D6A8` / `#3FC994` |
-| 4 | `#4A3AA7` | `#9085E9` | `#8A7CE0` / `#B6AEF4` |
-| 5 | `#EDA100` | `#C98500` | `#F7C959` / `#ECB43F` |
+Los colores de las series son los corporativos de Grupo SIMAP. El **orden** de
+las ranuras no es decorativo: es el mecanismo de seguridad para daltonismo.
+
+| Ranura | Claro | Oscuro | Extremo claro (claro / oscuro) | Asignada a |
+| --- | --- | --- | --- | --- |
+| 1 | `#00C4AD` | `#0FCDB4` | `#3FE0CD` / `#4EE3CE` | PRAVALTA (Furgón Rojo) · SIMAP |
+| 2 | `#C47500` | `#DE8410` | `#E39A33` / `#F0A94A` | PRAVALTA · LEONARDO |
+| 3 | `#25506F` | `#5A90C2` | `#4A7CA3` / `#8FB9DC` | DREAMS FL (Furgón Verde) |
+| 4 | `#C49C00` | `#D2AC1E` | `#E3BE33` / `#E7C955` | SAN PEDRO |
+| 5 | `#7A3F6D` | `#B87BA9` | `#A7699A` / `#CFA0C3` | reserva para una quinta sede |
+
+Los dos ámbares (`#C47500` y `#C49C00`) se parecen demasiado entre sí —ΔE 9,8 en
+visión normal, por debajo del umbral de 15—, así que el orden los mantiene
+**nunca contiguos**: entre ambos siempre queda el azul marino. Con ese orden, el
+peor par adyacente mide ΔE 16,8 bajo deuteranopia y 25,4 en visión normal, en
+ambos temas. El azul marino queda por debajo del suelo de saturación del método
+(lee casi como gris), lo que se compensa con su fuerte contraste sobre el fondo,
+la leyenda y la vista de tabla.
 
 Sobre fondos de marca con texto blanco encima se usa un par aparte
 (`--hero-a` / `--hero-b`) cuyo extremo más claro conserva 5:1 de contraste.

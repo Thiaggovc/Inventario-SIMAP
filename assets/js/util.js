@@ -149,39 +149,58 @@ export function animateNumber(el, to, { from = 0, duration = 900, format = fmt }
   requestAnimationFrame(tick);
 }
 
-let revealObserver = null;
-
 /**
  * Marca los elementos `.reveal` cuando entran en pantalla. El escalonado lo
  * aporta la variable `--i` de cada elemento.
+ *
+ * Se resuelve con un barrido en cada scroll, no con IntersectionObserver: sus
+ * avisos son asíncronos y con un desplazamiento rápido llegan a perderse, y una
+ * tarjeta que no recibe el aviso se queda invisible para siempre. El barrido
+ * mira posiciones reales, así que no puede saltarse nada.
  */
 export function observeReveal(root) {
-  const targets = $$('.reveal', root);
-  if (prefersReduced() || typeof IntersectionObserver === 'undefined') {
-    for (const el of targets) {
-      el.classList.add('is-in');
-      if (typeof el._firstDraw === 'function') el._firstDraw();
-    }
+  const pending = new Set($$('.reveal', root));
+
+  const show = (el) => {
+    pending.delete(el);
+    el.classList.add('is-in');
+    if (typeof el._firstDraw === 'function') el._firstDraw();
+  };
+
+  if (prefersReduced()) {
+    for (const el of [...pending]) show(el);
     return () => {};
   }
 
-  if (!revealObserver) {
-    revealObserver = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          e.target.classList.add('is-in');
-          revealObserver.unobserve(e.target);
-          if (typeof e.target._firstDraw === 'function') e.target._firstDraw();
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.06 }
-    );
-  }
+  let raf = 0;
+  const sweep = () => {
+    raf = 0;
+    const alto = window.innerHeight;
+    for (const el of [...pending]) {
+      const r = el.getBoundingClientRect();
+      if (r.top < alto * 0.94 && r.bottom > 0) show(el);
+    }
+    if (!pending.size) detach();
+  };
 
-  for (const el of targets) revealObserver.observe(el);
+  const schedule = () => {
+    if (!raf) raf = requestAnimationFrame(sweep);
+  };
+
+  const detach = () => {
+    window.removeEventListener('scroll', schedule);
+    window.removeEventListener('resize', schedule);
+    cancelAnimationFrame(raf);
+    raf = 0;
+  };
+
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule, { passive: true });
+  schedule();
+
   return () => {
-    for (const el of targets) revealObserver.unobserve(el);
+    detach();
+    pending.clear();
   };
 }
 
