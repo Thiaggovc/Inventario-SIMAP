@@ -82,6 +82,7 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
   );
 
   const descuadre = h('input', {
+    class: 'check',
     type: 'checkbox',
     checked: filters.soloDescuadre,
     onchange: (e) => setFilter({ soloDescuadre: e.target.checked }),

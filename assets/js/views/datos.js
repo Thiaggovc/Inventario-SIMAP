@@ -139,7 +139,11 @@ function importCard() {
   );
   drop.addEventListener('drop', (e) => {
     const f = e.dataTransfer?.files?.[0];
-    if (f) handleFile(f);
+    if (!f) return;
+    drop.classList.remove('is-taken');
+    void drop.offsetWidth;
+    drop.classList.add('is-taken');
+    handleFile(f);
   });
 
   return card(

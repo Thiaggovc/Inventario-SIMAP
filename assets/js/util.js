@@ -144,7 +144,14 @@ export function animateNumber(el, to, { from = 0, duration = 900, format = fmt }
     // Desaceleración suave: rápido al principio, asentado al final.
     const eased = 1 - Math.pow(1 - t, 3);
     el.textContent = format(from + delta * eased);
-    if (t < 1) requestAnimationFrame(tick);
+    if (t < 1) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    // Golpe seco al asentarse: la cifra final se hace notar.
+    el.classList.remove('is-settled');
+    void el.offsetWidth;
+    el.classList.add('is-settled');
   };
   requestAnimationFrame(tick);
 }
@@ -241,18 +248,20 @@ export function toast(title, body = '', kind = '') {
     toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.append(toastHost);
   }
+  const vida = kind === 'bad' ? 7000 : 4200;
   const el = h(
     'div',
-    { class: `toast ${kind ? 'toast--' + kind : ''}` },
+    { class: `toast ${kind ? 'toast--' + kind : ''}`, style: { '--toast-dur': `${vida}ms` } },
     h('div', { class: 'toast__title' }, title),
     body ? h('div', { class: 'toast__body' }, body) : null
   );
   toastHost.append(el);
   setTimeout(() => {
-    el.style.transition = 'opacity 220ms ease';
+    el.style.transition = 'opacity 240ms ease, transform 240ms ease';
     el.style.opacity = '0';
-    setTimeout(() => el.remove(), 240);
-  }, kind === 'bad' ? 7000 : 4200);
+    el.style.transform = 'translateX(24px) scale(0.96)';
+    setTimeout(() => el.remove(), 260);
+  }, vida);
 }
 
 /* --------------------------------------------------------------- modal -- */

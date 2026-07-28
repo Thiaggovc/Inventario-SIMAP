@@ -91,13 +91,20 @@ function masthead() {
           estado,
           h(
             'button',
-            { class: 'btn btn--icon', type: 'button', 'aria-label': 'Cambiar tema claro u oscuro', title: 'Tema claro / oscuro', onclick: toggleTema },
-            '◐'
+            {
+              class: 'btn btn--icon theme-toggle',
+              type: 'button',
+              'aria-label': 'Cambiar tema claro u oscuro',
+              title: 'Tema claro / oscuro',
+              onclick: toggleTema,
+            },
+            h('span', {}, '◐')
           )
         )
       ),
       nav
-    )
+    ),
+    h('span', { class: 'scrollbar-read', 'aria-hidden': 'true' })
   );
 
   const sync = () => {
@@ -236,6 +243,36 @@ async function main() {
     btn.style.setProperty('--mx', `${((e.clientX - b.left) / b.width) * 100}%`);
     btn.style.setProperty('--my', `${((e.clientY - b.top) / b.height) * 100}%`);
   }, { passive: true });
+
+  // Onda al pulsar: confirma la pulsación en el punto exacto del dedo.
+  document.addEventListener('pointerdown', (e) => {
+    if (prefersReduced()) return;
+    const btn = e.target.closest?.('.btn');
+    if (!btn) return;
+    const b = btn.getBoundingClientRect();
+    const d = Math.max(b.width, b.height) * 2.2;
+    const onda = h('span', {
+      class: 'ripple',
+      style: {
+        left: `${e.clientX - b.left}px`,
+        top: `${e.clientY - b.top}px`,
+        width: `${d}px`,
+        height: `${d}px`,
+      },
+    });
+    btn.append(onda);
+    setTimeout(() => onda.remove(), 640);
+  });
+
+  // Avance de lectura de la página.
+  const barra = header.querySelector('.scrollbar-read');
+  const avance = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    barra.style.width = max > 40 ? `${Math.min(100, (window.scrollY / max) * 100)}%` : '0%';
+  };
+  window.addEventListener('scroll', avance, { passive: true });
+  window.addEventListener('resize', avance, { passive: true });
+  avance();
 
   // Aviso al cerrar con cambios que sólo existen en este navegador.
   window.addEventListener('beforeunload', (e) => {

@@ -301,11 +301,20 @@ function openItem(data, item, repaint) {
 
   const balance = h('div', { class: 'sum-line' });
 
+  let cuadreAnterior = null;
   const refreshBalance = () => {
     const ub = sumValues(draft.ubicaciones);
     const pr = sumValues(draft.propietarios);
     clear(balance);
     balance.classList.toggle('is-bad', ub !== pr);
+    // El recuento late sólo cuando el cuadre cambia de estado, no en cada tecla.
+    const cuadra = ub === pr;
+    if (cuadreAnterior !== null && cuadreAnterior !== cuadra && !prefersReduced()) {
+      balance.classList.remove('is-pulsing');
+      void balance.offsetWidth;
+      balance.classList.add('is-pulsing');
+    }
+    cuadreAnterior = cuadra;
     balance.append(
       h('span', {}, `Ubicado: ${fmt(ub)} unidades · Asignado a propietarios: ${fmt(pr)} unidades`),
       h('span', {}, ub === pr ? 'Cuadra' : `Descuadre de ${fmt(Math.abs(pr - ub))}`)

@@ -180,17 +180,21 @@ scripts/validar-datos.mjs      validación usada por CI
 
 ### Identidad visual
 
-Editorial en la estructura, *liquid glass* en la superficie. Blanco, negro y el
-azul corporativo `#0073C4` para la interfaz, con serif para los titulares y sans
-para los datos.
+Estructura editorial y superficie *liquid glass*. Blanco, negro y el azul
+corporativo `#0073C4` para la interfaz. **Una sola familia tipográfica** —la
+misma sans del sistema que usan los gráficos— en toda la aplicación: los
+titulares destacan por tamaño y peso, no por cambiar de letra.
 
 - **Cristal.** Cabecera, filtros, tarjetas, tablas, globos y diálogos son
   paneles translúcidos con desenfoque de fondo, filo especular y sombra suave.
   Detrás respira un campo de luz azul en movimiento muy lento, con un grano
   finísimo que evita el aspecto plástico.
-- **Titulares.** Antetítulo en píldora de cristal y titular en versales serif
-  negrita, con la palabra final en degradado animado y una regla que se
-  despliega debajo.
+- **Titulares.** Antetítulo en píldora de cristal y titular en versales, peso
+  800 y hasta 58 px, con la palabra final en degradado animado y una regla que
+  se despliega debajo.
+- **Etiquetas largas.** Las tipologías llegan a 46 caracteres. En vez de
+  recortarlas —lo que escondía justo la parte que las distingue— se reparten en
+  dos líneas sin cortar palabras, y la fila del gráfico crece para acogerlas.
 - **Gráficos con degradado.** Cada serie se pinta con un degradado propio de su
   matiz más un velo especular. El matiz sigue identificando a la entidad: el
   degradado aporta volumen, nunca codifica magnitud.
@@ -221,7 +225,8 @@ luminancia real del relleno, recalculada al cambiar de tema.
 
 ### Movimiento
 
-El sitio se anima en cinco momentos, todos con la misma curva de salida:
+El sitio se anima en todos sus puntos de contacto, siempre con la misma curva
+de salida:
 
 1. **Entrada en pantalla.** Tarjetas y bloques aparecen escalonados al hacer
    scroll; las cifras cuentan hacia su valor y las barras crecen desde el eje.
@@ -235,7 +240,18 @@ El sitio se anima en cinco momentos, todos con la misma curva de salida:
    las demás se atenúan; el globo de cristal aparece con rebote y sigue al
    cursor. En el acumulado hay además una guía vertical con punto.
 5. **Cristal reactivo.** Botones y tarjeta principal llevan un reflejo que sigue
-   al puntero; el emblema tiene un destello periódico.
+   al puntero, y una onda nace en el punto exacto de la pulsación. El emblema
+   tiene un destello periódico y la tarjeta principal respira con un degradado
+   que se desplaza.
+6. **Leyenda viva.** Señalar una píldora de la leyenda aísla esa sede dentro del
+   gráfico y retira el resto, sin tocar los filtros.
+7. **Detalle en todas partes.** Barra de avance de lectura en la cabecera;
+   tarjetas con barrido de luz al aparecer y al pasar el cursor; filas de tabla
+   con acento que entra por la izquierda; flechas de ordenación con rebote;
+   casilla de verificación que dibuja su marca; avisos con cuenta atrás visible;
+   campos del formulario escalonados; el recuento de cuadre late al cambiar de
+   estado; el icono de tema gira; y la cifra de cada tarjeta da un golpe seco al
+   terminar de contar.
 
 Todo el movimiento se desactiva con `prefers-reduced-motion: reduce`, incluido
 el campo de fondo, y al imprimir.

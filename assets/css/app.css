@@ -76,9 +76,7 @@
   --good-text: #006300;
   --critical-text: #b02c2c;
 
-  /* Tipografía */
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
-    Georgia, "Times New Roman", serif;
+  /* Tipografía · una sola familia, la misma de los gráficos */
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
 
@@ -354,14 +352,15 @@ body::after {
 }
 
 .display {
-  font-family: var(--serif);
-  font-weight: 700;
+  font-family: var(--sans);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.012em;
-  line-height: 1.08;
+  letter-spacing: -0.018em;
+  line-height: 1.02;
+  text-wrap: balance;
 }
 
-.display--xl { font-size: clamp(27px, 4.1vw, 47px); }
+.display--xl { font-size: clamp(31px, 4.9vw, 58px); }
 
 /* Palabra acentuada del titular: degradado líquido en la propia tipografía. */
 .display em {
@@ -457,8 +456,9 @@ body::after {
   border-radius: 11px;
   background: linear-gradient(145deg, var(--hero-a), var(--hero-b));
   color: #fff;
-  font-family: var(--serif);
-  font-size: 18px;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 800;
   box-shadow: var(--glow-brand), inset 0 1px 0 rgba(255, 255, 255, 0.45);
   overflow: hidden;
 }
@@ -478,9 +478,10 @@ body::after {
 
 .brandmark__name {
   display: block;
-  font-family: var(--serif);
-  font-size: 19px;
-  letter-spacing: 0.08em;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   line-height: 1;
 }
@@ -900,11 +901,11 @@ body::after {
 }
 
 .card__title {
-  font-family: var(--serif);
-  font-size: 20px;
-  font-weight: 400;
-  line-height: 1.24;
-  letter-spacing: -0.008em;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: -0.012em;
 }
 
 .card__sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
@@ -920,7 +921,7 @@ body::after {
   padding-bottom: 10px;
   border-bottom: 1px solid var(--rule);
 }
-.section-rule h2 { font-family: var(--serif); font-size: 25px; font-weight: 400; }
+.section-rule h2 { font-family: var(--sans); font-size: 21px; font-weight: 700; letter-spacing: -0.015em; text-transform: uppercase; }
 .section-rule p { font-size: 12px; color: var(--ink-3); margin-left: auto; text-align: right; }
 
 /* --------------------------------------------------------------- charts -- */
@@ -1178,7 +1179,7 @@ table.data tfoot td {
   padding: 20px 24px 15px;
   border-bottom: 1px solid var(--rule);
 }
-.modal__title { font-family: var(--serif); font-size: 23px; font-weight: 400; }
+.modal__title { font-family: var(--sans); font-size: 21px; font-weight: 700; letter-spacing: -0.015em; }
 .modal__body { padding: 22px 24px; }
 .modal__foot {
   display: flex;
@@ -1251,7 +1252,7 @@ table.data tfoot td {
   transform: scale(1.015);
   box-shadow: var(--glow-brand);
 }
-.drop__title { font-family: var(--serif); font-size: 20px; margin-bottom: 7px; }
+.drop__title { font-family: var(--sans); font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 7px; }
 .drop__hint { font-size: 12.5px; color: var(--ink-3); margin-bottom: 18px; }
 
 .kv {
@@ -1370,6 +1371,253 @@ table.data tfoot td {
 /* Refresco de tarjetas al cambiar un filtro: nunca un esqueleto en blanco. */
 .is-refreshing { opacity: 0.45; transition: opacity 140ms var(--ease-soft); }
 
+/* ========================================== capa de interacción viva ==== */
+
+/* Barra de avance de lectura, pegada al filo inferior de la cabecera. */
+.scrollbar-read {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--series-1), var(--brand) 55%, var(--series-4));
+  box-shadow: 0 0 12px var(--brand-wash);
+  transition: width 90ms linear;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Onda al pulsar cualquier botón. */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: currentColor;
+  opacity: 0.28;
+  pointer-events: none;
+  animation: ripple 620ms var(--ease-out) forwards;
+}
+
+@keyframes ripple {
+  to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+/* Barrido de luz que cruza una tarjeta al aparecer y al pasar el cursor. */
+.card::after,
+.tile:not(.tile--hero)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(72deg, transparent 44%, var(--glass-spec) 50%, transparent 56%);
+  opacity: 0;
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.card, .tile { position: relative; }
+
+.card.is-in::after,
+.tile.is-in::after { animation: card-sheen 1400ms var(--ease-soft) 260ms both; }
+.card:hover::after,
+.tile:not(.tile--hero):hover::after { animation: card-sheen 900ms var(--ease-soft) both; }
+
+@keyframes card-sheen {
+  0% { opacity: 0; transform: translateX(-120%); }
+  35% { opacity: 0.85; }
+  100% { opacity: 0; transform: translateX(120%); }
+}
+
+/* El realce sólo va en las tarjetas del tablero: transformar la del inventario
+   rompería el encabezado fijo de su tabla. */
+.grid > .card:hover { transform: translateY(-3px); }
+.card:hover { border-color: var(--rule-strong); }
+
+/* La tarjeta principal respira: el degradado se desplaza muy despacio. */
+.tile--hero {
+  background-size: 190% 190%;
+  animation: hero-drift 16s var(--ease-soft) infinite alternate;
+}
+
+@keyframes hero-drift {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+
+/* Filas de tabla: acento que entra por la izquierda. */
+table.data tbody tr td:first-child { position: relative; }
+
+table.data tbody tr td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--series-1);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform var(--dur-1) var(--ease-spring);
+}
+
+table.data tbody tr:hover td:first-child::before { transform: scaleY(1); }
+table.data tbody tr:hover td { transform: translateX(2px); }
+table.data tbody tr td { transition: transform var(--dur-1) var(--ease-out); }
+
+/* Cabeceras ordenables: la flecha se asienta con rebote. */
+.sortable::after { display: inline-block; transition: transform var(--dur-2) var(--ease-spring), opacity var(--dur-1); }
+.sortable[data-dir]::after { animation: arrow-drop 380ms var(--ease-spring); }
+
+@keyframes arrow-drop {
+  from { transform: translateY(-6px) scale(0.7); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Interruptor de tema: el icono gira al cambiar. */
+.theme-toggle span { display: block; transition: transform 620ms var(--ease-spring); }
+:root[data-theme="dark"] .theme-toggle span { transform: rotate(180deg); }
+
+/* Casilla propia, con marca que se dibuja. */
+.check {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border-radius: 6px;
+  border: 1px solid var(--rule-strong);
+  background: var(--glass);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--dur-1) var(--ease-soft), border-color var(--dur-1) var(--ease-soft),
+    transform var(--dur-1) var(--ease-spring);
+}
+.check:hover { transform: scale(1.08); border-color: var(--brand); }
+.check:checked {
+  background: linear-gradient(150deg, var(--hero-a), var(--hero-b));
+  border-color: transparent;
+}
+.check::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 260ms var(--ease-spring);
+}
+.check:checked::after { transform: rotate(45deg) scale(1); }
+
+/* Aviso con cuenta atrás visible. */
+.toast { position: relative; overflow: hidden; }
+.toast::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.3;
+  transform-origin: left center;
+  animation: toast-timer var(--toast-dur, 4200ms) linear forwards;
+}
+
+@keyframes toast-timer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Cabecera que entra al cargar. */
+.masthead { animation: drop-in 620ms var(--ease-out) both; }
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nav__link { transition: color var(--dur-2) var(--ease-soft), transform var(--dur-1) var(--ease-spring); }
+.nav__link:hover { transform: translateY(-1px); }
+
+.kicker--pill { transition: transform var(--dur-1) var(--ease-spring), box-shadow var(--dur-2) var(--ease-soft); }
+.kicker--pill:hover { transform: translateY(-2px); box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-spec); }
+
+.note, .drop, .sum-line, .kv { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-soft); }
+.note:hover { transform: translateX(3px); }
+
+.steps li::before { transition: transform var(--dur-1) var(--ease-spring); }
+.steps li:hover::before { transform: scale(1.15) rotate(-8deg); }
+
+.chip { transition: transform var(--dur-1) var(--ease-spring); }
+.chip:hover { transform: translateY(-1px) scale(1.03); }
+
+/* Campos del formulario, escalonados al abrir el diálogo. */
+.modal .field,
+.modal .fieldset-rule { animation: field-in 460ms var(--ease-out) both; }
+.modal .form-grid > *:nth-child(1) { animation-delay: 40ms; }
+.modal .form-grid > *:nth-child(2) { animation-delay: 80ms; }
+.modal .form-grid > *:nth-child(3) { animation-delay: 120ms; }
+.modal .form-grid > *:nth-child(4) { animation-delay: 160ms; }
+.modal .fieldset-rule:nth-of-type(2) { animation-delay: 120ms; }
+.modal .fieldset-rule:nth-of-type(3) { animation-delay: 200ms; }
+
+@keyframes field-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* La marca señalada del gráfico crece un punto. */
+.chart__row.is-active .chart__mark,
+.chart__row.is-active .chart__gloss { transform: scale(1.035); }
+.chart__gloss { transform-box: fill-box; transform-origin: center; transition: transform var(--dur-2) var(--ease-spring); }
+.chart__mark { transform-origin: center; }
+
+/* Valor de la tarjeta: golpe seco al terminar de contar. */
+.tile__value.is-settled { animation: value-pop 420ms var(--ease-spring); }
+
+@keyframes value-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.055); }
+  100% { transform: scale(1); }
+}
+
+/* Enfoque desde la leyenda: la serie señalada se queda, el resto se retira. */
+.legend__item { cursor: pointer; }
+.legend__item.is-focus {
+  color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-spec);
+  border-color: var(--rule-strong);
+}
+.legend__item.is-focus .legend__swatch { transform: scale(1.2); }
+.legend__swatch { transition: transform var(--dur-1) var(--ease-spring); }
+
+.chart .is-dim { opacity: 0.14; }
+.chart.is-legend-focus .chart__cat,
+.chart.is-legend-focus .chart__val { opacity: 0.5; }
+.chart [data-serie] { transition: opacity var(--dur-2) var(--ease-soft); }
+
+/* El recuento del formulario reacciona cuando cambia el cuadre. */
+.sum-line.is-pulsing { animation: sum-pulse 520ms var(--ease-spring); }
+
+@keyframes sum-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.015); }
+  100% { transform: scale(1); }
+}
+
+/* La zona de carga confirma la recepción del archivo. */
+.drop.is-taken { animation: drop-taken 620ms var(--ease-spring); }
+
+@keyframes drop-taken {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.975); }
+  100% { transform: scale(1); }
+}
+
 /* --------------------------------------------------------------- utils -- */
 
 .stack { display: grid; gap: 15px; }
@@ -1390,8 +1638,10 @@ table.data tfoot td {
   place-items: center;
   min-height: 70vh;
   color: var(--ink-3);
-  font-family: var(--serif);
-  font-size: 19px;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   animation: breathe 2.4s var(--ease-soft) infinite;
 }
 

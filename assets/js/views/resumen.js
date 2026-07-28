@@ -250,7 +250,7 @@ function renderCards(grid, data, items, s) {
       index: 1,
       sub: `Las ${Math.min(TOP_TIPOS, s.porTipo.length)} tipologías de mayor volumen`,
       span: 'col-8',
-      render: (el, o) => barsH(el, { rows: tipoRows, unidad: 'unidades', maxLabel: 34, ...o }),
+      render: (el, o) => barsH(el, { rows: tipoRows, unidad: 'unidades', maxLabel: 26, ...o }),
       table: () =>
         simpleTable(
           [
@@ -279,9 +279,9 @@ function renderCards(grid, data, items, s) {
       legendEl: legend(propParts),
       render: (el, o) =>
         barsH(el, {
-          rows: propParts.map((p) => ({ key: p.nombre, value: p.value, slot: p.slot })),
+          rows: propParts.map((p) => ({ key: p.nombre, value: p.value, slot: p.slot, serie: p.id })),
           unidad: 'unidades',
-          maxLabel: 18,
+          maxLabel: 20,
           ...o,
         }),
       table: () =>
@@ -378,7 +378,7 @@ function renderCards(grid, data, items, s) {
       index: 6,
       sub: `${fmt(s.medidas)} medidas distintas en las referencias filtradas`,
       span: 'col-8',
-      render: (el, o) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 30, ...o }),
+      render: (el, o) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 26, ...o }),
       table: () =>
         simpleTable(
           [

@@ -176,27 +176,57 @@ function bindRow(root, hit, row, tipData) {
 
 /* ---------------------------------------------------------- animación -- */
 
+/**
+ * Las animaciones de entrada se cancelan al terminar. Mientras siguen activas
+ * mandan sobre la cascada, y eso impediría que el realce del cursor —definido
+ * en CSS— llegara a aplicarse. Terminan en el estado natural, así que
+ * cancelarlas no produce ningún salto.
+ */
+function retire(anim, el) {
+  if (!anim) return;
+  anim.finished
+    .then(() => {
+      anim.cancel();
+      el.style.transform = '';
+      el.style.opacity = '';
+    })
+    .catch(() => {});
+}
+
 function grow(el, { axis = 'x', delay = 0, animate = true }) {
   if (!animate || prefersReduced() || !el.animate) return;
   el.style.transformBox = 'fill-box';
-  el.style.transformOrigin = axis === 'x' ? '0% 50%' : '50% 100%';
-  el.animate(
+  const origin = axis === 'x' ? '0% 50%' : '50% 100%';
+  el.style.transformOrigin = origin;
+  const anim = el.animate(
     [
       { transform: axis === 'x' ? 'scaleX(0.001)' : 'scaleY(0.001)', opacity: 0.35 },
       { transform: 'scale(1)', opacity: 1 },
     ],
     { duration: DUR_MARK, delay, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
   );
+  anim.finished
+    .then(() => {
+      anim.cancel();
+      el.style.transform = '';
+      el.style.opacity = '';
+      // El realce del cursor crece desde el centro, no desde la base.
+      el.style.transformOrigin = '';
+    })
+    .catch(() => {});
 }
 
 function fadeUp(el, { delay = 0, animate = true, dy = 6 } = {}) {
   if (!animate || prefersReduced() || !el.animate) return;
-  el.animate(
-    [
-      { opacity: 0, transform: `translateY(${dy}px)` },
-      { opacity: 1, transform: 'none' },
-    ],
-    { duration: 460, delay, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
+  retire(
+    el.animate(
+      [
+        { opacity: 0, transform: `translateY(${dy}px)` },
+        { opacity: 1, transform: 'none' },
+      ],
+      { duration: 460, delay, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
+    ),
+    el
   );
 }
 
@@ -218,10 +248,11 @@ function barPath(x, y, w, hgt, side) {
 }
 
 /** Marca de cristal: relleno degradado más su velo especular. */
-function glassMark(d, fill) {
+function glassMark(d, fill, serie) {
+  const attrs = serie ? { 'data-serie': serie } : {};
   return [
-    svg('path', { class: 'chart__mark', d, fill }),
-    svg('path', { class: 'chart__gloss', d, fill: 'url(#simap-gloss)', 'pointer-events': 'none' }),
+    svg('path', { class: 'chart__mark', d, fill, ...attrs }),
+    svg('path', { class: 'chart__gloss', d, fill: 'url(#simap-gloss)', 'pointer-events': 'none', ...attrs }),
   ];
 }
 
@@ -239,6 +270,77 @@ export function niceTicks(max, count = 4) {
 
 function textWidth(s, size = 11) {
   return String(s).length * size * 0.58;
+}
+
+const CHAR_W = 6.5;
+const LINE_H = 13;
+
+/**
+ * Parte una etiqueta larga en varias líneas sin cortar palabras.
+ * Las tipologías de esta empresa llegan a 46 caracteres —«FORMALETA DE MURO
+ * CON ANGULO Y CENEFA DE 10 CM»—, así que recortarlas escondía justo la parte
+ * que las distingue entre sí.
+ */
+function wrapLabel(text, maxChars, maxLines = 2) {
+  const words = String(text).trim().split(/\s+/);
+  const lines = [];
+  let cur = '';
+
+  for (const word of words) {
+    // Una palabra más larga que la línea se parte por la fuerza.
+    let w = word;
+    while (w.length > maxChars) {
+      if (cur) {
+        lines.push(cur);
+        cur = '';
+        if (lines.length >= maxLines) break;
+      }
+      lines.push(w.slice(0, maxChars));
+      w = w.slice(maxChars);
+      if (lines.length >= maxLines) break;
+    }
+    if (lines.length >= maxLines) break;
+
+    const cand = cur ? `${cur} ${w}` : w;
+    if (cand.length <= maxChars) {
+      cur = cand;
+    } else {
+      lines.push(cur);
+      cur = w;
+      if (lines.length >= maxLines) break;
+    }
+  }
+
+  if (lines.length < maxLines && cur) lines.push(cur);
+
+  // Si aún quedó texto fuera, la última línea lo indica con puntos suspensivos.
+  const shown = lines.join(' ');
+  if (shown.replace(/\s+/g, ' ') !== String(text).trim().replace(/\s+/g, ' ')) {
+    const last = lines[lines.length - 1] || '';
+    lines[lines.length - 1] = last.slice(0, Math.max(1, maxChars - 1)).replace(/\s+$/, '') + '…';
+  }
+  return lines;
+}
+
+/** Prepara las etiquetas de categoría y el ancho de columna que necesitan. */
+function layoutLabels(rows, { maxChars, minW = 120, maxW = 210 }) {
+  const wrapped = rows.map((r) => wrapLabel(r.key, maxChars));
+  const lineCount = Math.max(1, ...wrapped.map((l) => l.length));
+  const widest = Math.max(...wrapped.flat().map((l) => l.length), 8);
+  return {
+    wrapped,
+    lineCount,
+    labelW: Math.min(maxW, Math.max(minW, widest * CHAR_W + 16)),
+  };
+}
+
+/** Bloque de texto multilínea, centrado verticalmente sobre la marca. */
+function catLabel(lines, x, cy, title) {
+  const top = cy - ((lines.length - 1) * LINE_H) / 2;
+  const el = svg('text', { class: 'chart__cat', x, y: top, 'text-anchor': 'end' });
+  lines.forEach((ln, i) => el.append(svg('tspan', { x, dy: i === 0 ? 0 : LINE_H }, ln)));
+  el.append(svg('title', {}, title));
+  return el;
 }
 
 let probe = null;
@@ -267,15 +369,15 @@ function inkOn(cssColor) {
 
 /* ------------------------------------------------- barras horizontales -- */
 
-export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 30, animate = true }) {
+export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true }) {
   ensureDefs();
   clear(host);
   if (!rows.length) return emptyState(host);
 
-  const rowH = 31;
+  const { wrapped, lineCount, labelW } = layoutLabels(rows, { maxChars: maxLabel });
+  const rowH = Math.max(31, lineCount * LINE_H + 14);
   const padT = 8;
   const padB = 26;
-  const labelW = Math.min(230, Math.max(120, ...rows.map((r) => Math.min(maxLabel, String(r.key).length) * 6.6 + 12)));
   const valueW = 64;
   const width = Math.max(host.clientWidth || 640, 420);
   const plotW = Math.max(90, width - labelW - valueW);
@@ -304,18 +406,17 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 30
     const y = padT + i * rowH + (rowH - bh) / 2;
     const w = Math.max(r.value > 0 ? 2 : 0, scale(r.value));
     const label = String(r.key);
-    const shown = label.length > maxLabel ? label.slice(0, maxLabel - 1) + '…' : label;
     const fill = r.slot !== undefined ? seriesFill(r.slot) : seriesFill(slot);
     const swatch = r.slot !== undefined ? seriesColor(r.slot) : seriesColor(slot);
 
-    const marks = glassMark(barPath(labelW, y, w, bh, 'right'), fill);
+    const marks = glassMark(barPath(labelW, y, w, bh, 'right'), fill, r.serie);
     const val = svg('text', { class: 'chart__val', x: labelW + w + 9, y: y + bh / 2 + 4 }, fmt(r.value));
     const hit = svg('rect', { class: 'chart__hit', x: 0, y: padT + i * rowH, width: labelW + plotW + valueW, height: rowH });
 
     const row = svg(
       'g',
       { class: 'chart__row' },
-      svg('text', { class: 'chart__cat', x: labelW - 11, y: y + bh / 2 + 4, 'text-anchor': 'end' }, shown, svg('title', {}, label)),
+      catLabel(wrapped[i], labelW - 11, y + bh / 2 + 4, label),
       marks,
       val,
       hit
@@ -337,15 +438,15 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 30
 
 /* -------------------------------------------- barras apiladas por serie -- */
 
-export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 34, animate = true }) {
+export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 28, animate = true }) {
   ensureDefs();
   clear(host);
   if (!rows.length || !series.length) return emptyState(host);
 
-  const rowH = 33;
+  const { wrapped, lineCount, labelW } = layoutLabels(rows, { maxChars: maxLabel, minW: 130, maxW: 230 });
+  const rowH = Math.max(33, lineCount * LINE_H + 16);
   const padT = 8;
   const padB = 26;
-  const labelW = Math.min(250, Math.max(130, ...rows.map((r) => Math.min(maxLabel, String(r.key).length) * 6.6 + 12)));
   const valueW = 68;
   const width = Math.max(host.clientWidth || 700, 460);
   const plotW = Math.max(100, width - labelW - valueW);
@@ -373,7 +474,6 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
     const bh = Math.min(BAR_MAX, rowH - 10);
     const y = padT + i * rowH + (rowH - bh) / 2;
     const label = String(r.key);
-    const shown = label.length > maxLabel ? label.slice(0, maxLabel - 1) + '…' : label;
     const active = series.filter((s) => (r.parts[s.id] || 0) > 0);
 
     const segsG = svg('g', { class: 'chart__segs' });
@@ -384,7 +484,7 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
       // El hueco de 2 px lo aporta la superficie: nunca un borde dibujado.
       const raw = scale(v);
       const w = Math.max(1.5, isLast ? raw : raw - GAP);
-      segsG.append(...glassMark(barPath(x, y, w, bh, isLast ? 'right' : 'square'), s.fill));
+      segsG.append(...glassMark(barPath(x, y, w, bh, isLast ? 'right' : 'square'), s.fill, s.id));
       x += raw;
     });
 
@@ -394,7 +494,7 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
     const row = svg(
       'g',
       { class: 'chart__row' },
-      svg('text', { class: 'chart__cat', x: labelW - 11, y: y + bh / 2 + 4, 'text-anchor': 'end' }, shown, svg('title', {}, label)),
+      catLabel(wrapped[i], labelW - 11, y + bh / 2 + 4, label),
       segsG,
       val,
       hit
@@ -441,7 +541,7 @@ export function shareBar(host, { parts, unidad = 'unidades', animate = true }) {
     const w = Math.max(1.5, isLast ? raw : raw - GAP);
     const pct = (p.value / total) * 100;
 
-    const marks = glassMark(barPath(x, 0, w, bh, i === 0 ? 'left' : isLast ? 'right' : 'square'), p.fill);
+    const marks = glassMark(barPath(x, 0, w, bh, i === 0 ? 'left' : isLast ? 'right' : 'square'), p.fill, p.id);
     const seg = svg('g', { class: 'chart__row' }, marks);
 
     // Sólo se rotula dentro del segmento si el texto cabe con holgura.
@@ -691,7 +791,7 @@ export function legend(series, { line = false } = {}) {
     series.map((s, i) =>
       h(
         'span',
-        { class: 'legend__item', role: 'listitem', style: { '--i': i } },
+        { class: 'legend__item', role: 'listitem', style: { '--i': i }, dataset: s.id ? { serie: s.id } : {} },
         h('span', {
           class: `legend__swatch ${line ? 'legend__swatch--line' : ''}`,
           style: { background: `linear-gradient(150deg, ${s.colorLift || s.color}, ${s.color})` },
@@ -748,7 +848,26 @@ export function chartCard({ title, sub, span = 'col-6', legendEl, render, table,
     }
   });
 
-  if (legendEl) body.append(legendEl);
+  if (legendEl) {
+    body.append(legendEl);
+    /* Señalar una píldora de la leyenda atenúa el resto de las series dentro
+       del gráfico: es la forma directa de aislar una sede sin tocar filtros. */
+    for (const item of legendEl.querySelectorAll('.legend__item[data-serie]')) {
+      const id = item.dataset.serie;
+      const enfocar = (on) => {
+        plot.querySelectorAll('svg.chart').forEach((sv) => sv.classList.toggle('is-legend-focus', on));
+        plot.querySelectorAll('[data-serie]').forEach((m) => {
+          m.classList.toggle('is-dim', on && m.dataset.serie !== id);
+        });
+        item.classList.toggle('is-focus', on);
+      };
+      item.addEventListener('mouseenter', () => enfocar(true));
+      item.addEventListener('mouseleave', () => enfocar(false));
+      item.addEventListener('focus', () => enfocar(true));
+      item.addEventListener('blur', () => enfocar(false));
+      item.tabIndex = 0;
+    }
+  }
   body.append(plot, tableWrap);
   if (note) body.append(h('p', { class: 'small muted', style: { marginTop: '13px' } }, note));
 
