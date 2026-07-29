@@ -2,6 +2,7 @@
  * Una sola fila de controles por encima de todo lo que afecta. */
 
 import { h, debounce } from './util.js';
+import { glassSelect } from './ui.js';
 
 export const filters = {
   q: '',
@@ -10,6 +11,7 @@ export const filters = {
   propietario: '',
   compra: '',
   soloDescuadre: false,
+  soloConStock: false,
 };
 
 const subs = new Set();
@@ -29,12 +31,21 @@ export function setFilter(patch) {
 }
 
 export function resetFilters() {
-  Object.assign(filters, { q: '', tipos: [], ubicacion: '', propietario: '', compra: '', soloDescuadre: false });
+  Object.assign(filters, {
+    q: '', tipos: [], ubicacion: '', propietario: '', compra: '',
+    soloDescuadre: false, soloConStock: false,
+  });
   fire();
 }
 
 export const hasActiveFilters = () =>
-  !!(filters.q || filters.tipos.length || filters.ubicacion || filters.propietario || filters.compra || filters.soloDescuadre);
+  !!(filters.q || filters.tipos.length || filters.ubicacion || filters.propietario ||
+     filters.compra || filters.soloDescuadre || filters.soloConStock);
+
+/** Cuántos filtros hay puestos, para avisarlo en la propia barra. */
+export const countActiveFilters = () =>
+  [filters.q, filters.tipos.length, filters.ubicacion, filters.propietario, filters.compra,
+   filters.soloDescuadre, filters.soloConStock].filter(Boolean).length;
 
 /** Construye la barra de filtros para una vista. */
 export function filterBar(data, { showDescuadre = true, note } = {}) {
@@ -47,39 +58,49 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     oninput: debounce((e) => setFilter({ q: e.target.value }), 200),
   });
 
-  const tipoSel = h(
-    'select',
-    {
-      class: 'select',
-      'aria-label': 'Filtrar por tipología',
-      onchange: (e) => setFilter({ tipos: e.target.value ? [e.target.value] : [] }),
-    },
-    h('option', { value: '' }, `Todas (${data.tipos.length})`),
-    data.tipos.map((t) => h('option', { value: t, selected: filters.tipos[0] === t }, t))
-  );
+  const tipoSel = glassSelect({
+    value: filters.tipos[0] || '',
+    ariaLabel: 'Filtrar por tipología',
+    placeholder: `Todas (${data.tipos.length})`,
+    options: [
+      { value: '', label: `Todas (${data.tipos.length})` },
+      ...data.tipos.map((t) => ({ value: t, label: t })),
+    ],
+    onChange: (v) => setFilter({ tipos: v ? [v] : [] }),
+  });
 
-  const ubicSel = h(
-    'select',
-    { class: 'select', 'aria-label': 'Filtrar por ubicación', onchange: (e) => setFilter({ ubicacion: e.target.value }) },
-    h('option', { value: '' }, 'Todas las sedes'),
-    data.ubicaciones.map((u) => h('option', { value: u.id, selected: filters.ubicacion === u.id }, u.nombre))
-  );
+  const ubicSel = glassSelect({
+    value: filters.ubicacion,
+    ariaLabel: 'Filtrar por ubicación',
+    placeholder: 'Todas las sedes',
+    options: [
+      { value: '', label: 'Todas las sedes' },
+      ...data.ubicaciones.map((u, i) => ({ value: u.id, label: u.nombre, color: `var(--series-${(i % 5) + 1})` })),
+    ],
+    onChange: (v) => setFilter({ ubicacion: v }),
+  });
 
-  const propSel = h(
-    'select',
-    { class: 'select', 'aria-label': 'Filtrar por propietario', onchange: (e) => setFilter({ propietario: e.target.value }) },
-    h('option', { value: '' }, 'Todos'),
-    data.propietarios.map((p) => h('option', { value: p.id, selected: filters.propietario === p.id }, p.nombre))
-  );
+  const propSel = glassSelect({
+    value: filters.propietario,
+    ariaLabel: 'Filtrar por propietario',
+    placeholder: 'Todos',
+    options: [
+      { value: '', label: 'Todos' },
+      ...data.propietarios.map((p, i) => ({ value: p.id, label: p.nombre, color: `var(--series-${(i % 5) + 1})` })),
+    ],
+    onChange: (v) => setFilter({ propietario: v }),
+  });
 
-  const compraSel = h(
-    'select',
-    { class: 'select', 'aria-label': 'Filtrar por compra', onchange: (e) => setFilter({ compra: e.target.value }) },
-    h('option', { value: '' }, 'Cualquiera'),
-    data.compras.map((c) =>
-      h('option', { value: c.id, selected: filters.compra === c.id }, `${c.etiqueta}${c.fecha ? ` · ${c.fecha}` : ''}`)
-    )
-  );
+  const compraSel = glassSelect({
+    value: filters.compra,
+    ariaLabel: 'Filtrar por compra',
+    placeholder: 'Cualquiera',
+    options: [
+      { value: '', label: 'Cualquiera' },
+      ...data.compras.map((c) => ({ value: c.id, label: c.etiqueta, hint: c.fecha || '' })),
+    ],
+    onChange: (v) => setFilter({ compra: v }),
+  });
 
   const descuadre = h('input', {
     class: 'check',
@@ -88,17 +109,26 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     onchange: (e) => setFilter({ soloDescuadre: e.target.checked }),
   });
 
+  const conStock = h('input', {
+    class: 'check',
+    type: 'checkbox',
+    checked: filters.soloConStock,
+    onchange: (e) => setFilter({ soloConStock: e.target.checked }),
+  });
+
   /* Los filtros también se aplican desde fuera —al pulsar una barra del
      tablero—, así que los controles se sincronizan con el estado real. */
   const sincronizar = () => {
     if (qInput.value !== filters.q) qInput.value = filters.q;
-    tipoSel.value = filters.tipos[0] || '';
-    ubicSel.value = filters.ubicacion;
-    propSel.value = filters.propietario;
-    compraSel.value = filters.compra;
+    tipoSel._set(filters.tipos[0] || '');
+    ubicSel._set(filters.ubicacion);
+    propSel._set(filters.propietario);
+    compraSel._set(filters.compra);
     descuadre.checked = filters.soloDescuadre;
+    conStock.checked = filters.soloConStock;
+    const n = countActiveFilters();
+    bar.dataset.activos = n ? String(n) : '';
   };
-  const off = onFilters(sincronizar);
   // La barra se destruye con su vista; el desuscriptor viaja con el elemento.
   const bar = h(
     'section',
@@ -108,14 +138,17 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Ubicación / proyecto'), ubicSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Propietario'), propSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Compra'), compraSel),
-    showDescuadre
-      ? h(
-          'label',
-          { class: 'field' },
-          h('span', { class: 'field__label' }, 'Consistencia'),
-          h('span', { class: 'row', style: { gap: '7px', paddingTop: '6px' } }, descuadre, h('span', { class: 'small' }, 'Sólo descuadres'))
-        )
-      : null,
+    h(
+      'div',
+      { class: 'field' },
+      h('span', { class: 'field__label' }, 'Existencias'),
+      h(
+        'div',
+        { class: 'switches' },
+        h('label', { class: 'switch' }, conStock, h('span', {}, 'Sólo con existencias')),
+        showDescuadre ? h('label', { class: 'switch' }, descuadre, h('span', {}, 'Sólo descuadres')) : null
+      )
+    ),
     h(
       'div',
       { class: 'filterbar__actions' },
@@ -125,6 +158,11 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     note || null
   );
 
-  bar._dispose = off;
+  const off = onFilters(sincronizar);
+  sincronizar();
+  bar._dispose = () => {
+    off();
+    for (const sel of [tipoSel, ubicSel, propSel, compraSel]) sel._dispose();
+  };
   return bar;
 }

@@ -6,6 +6,7 @@ import { renderResumen } from './views/resumen.js';
 import { renderInventario } from './views/inventario.js';
 import { renderDatos } from './views/datos.js';
 import { hideTip, ensureDefs } from './charts.js';
+import { cerrarDesplegables } from './ui.js';
 
 const RUTAS = [
   { id: 'resumen', label: 'Resumen', render: renderResumen },
@@ -161,6 +162,7 @@ function navegar(nav, main, { primera = false } = {}) {
   }
   moverTinta(nav);
   hideTip();
+  cerrarDesplegables();
 
   const pintar = () => {
     if (typeof cleanup === 'function') cleanup();
@@ -200,7 +202,19 @@ async function main() {
   document.body.prepend(aurora());
   ensureDefs();
   const root = document.getElementById('app');
-  clear(root).append(h('div', { class: 'skeleton' }, 'Cargando inventario…'));
+  const pantallaCarga = document.getElementById('boot');
+  const arrancado = performance.now();
+
+  /* La pantalla de arranque se mantiene un instante mínimo: si el JSON llega
+     en 40 ms, un destello sería más molesto que la propia espera. */
+  const retirarBoot = () => {
+    if (!pantallaCarga) return;
+    const espera = Math.max(0, 620 - (performance.now() - arrancado));
+    setTimeout(() => {
+      pantallaCarga.classList.add('is-going');
+      setTimeout(() => pantallaCarga.remove(), 560);
+    }, espera);
+  };
 
   try {
     await boot();
@@ -215,6 +229,7 @@ async function main() {
         h('p', { class: 'deck small' }, 'Si abrió el archivo directamente desde el disco, sírvalo con un servidor web: los módulos de JavaScript no funcionan sobre file://.')
       )
     );
+    retirarBoot();
     return;
   }
 
@@ -222,6 +237,7 @@ async function main() {
   const mainEl = h('main', { id: 'main' });
 
   clear(root).append(header, mainEl, colophon());
+  retirarBoot();
 
   if (!location.hash) location.hash = '#/resumen';
   navegar(nav, mainEl, { primera: true });

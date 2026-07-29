@@ -294,8 +294,10 @@ export function filterItems(data, f = {}) {
   const prop = f.propietario || '';
   const compra = f.compra || '';
   const soloDescuadre = !!f.soloDescuadre;
+  const soloConStock = !!f.soloConStock;
 
   return data.items.filter((it) => {
+    if (soloConStock && itemTotal(it) === 0) return false;
     if (tipos && !tipos.has(it.tipo)) return false;
     if (ubic && !it.ubicaciones[ubic]) return false;
     if (prop && !it.propietarios[prop]) return false;

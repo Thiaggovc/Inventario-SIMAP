@@ -201,6 +201,14 @@ corporativo `#0073C4` para la interfaz. **Una sola familia tipográfica** —la
 misma sans del sistema que usan los gráficos— en toda la aplicación: los
 titulares destacan por tamaño y peso, no por cambiar de letra.
 
+- **Controles propios.** Los desplegables nativos los dibuja el sistema
+  operativo y no admiten ni vidrio, ni degradado, ni animación. Los de esta
+  aplicación son propios: panel de cristal anclado al botón, filtro de texto
+  cuando la lista es larga, punto de color por serie y teclado completo
+  (flechas, Inicio/Fin, Enter, Escape).
+- **Pantalla de arranque.** Un panel de cristal denso con «GRUPO SIMAP» en
+  degradado y una barra de avance, con permanencia mínima para que una carga
+  instantánea no produzca un destello.
 - **Cristal.** Cabecera, filtros, tarjetas, tablas, globos y diálogos son
   paneles translúcidos con desenfoque de fondo, filo especular y sombra suave.
   Detrás respira un campo de luz azul en movimiento muy lento, con un grano
@@ -265,8 +273,13 @@ de salida:
 7. **Elegir qué mirar.** Cada píldora de la leyenda es un interruptor: apagar
    una sede la retira del reparto y del cruce por tipología a la vez. Los
    gráficos de tipologías y medidas llevan un selector de cuántas filas listar
-   (10, 15, 25, 40 o todas). Y pulsar una barra filtra el tablero entero por esa
-   tipología o propietario; volver a pulsarla lo deshace.
+   (10, 15, 25, 40 o todas) y otro de criterio de orden (volumen o alfabético).
+   El reparto por sede se ve como barra o como **anillo**, y el cruce
+   tipología × sede como **apilado o agrupado** —agrupado comparte eje, así que
+   comparar sedes deja de exigir medir segmentos desplazados—. Pulsar una barra
+   filtra el tablero entero por esa tipología o propietario; volver a pulsarla
+   lo deshace. La barra de filtros suma «sólo con existencias» y muestra cuántos
+   filtros hay puestos.
 8. **Detalle en todas partes.** Barra de avance de lectura en la cabecera;
    tarjetas con barrido de luz al aparecer y al pasar el cursor; filas de tabla
    con acento que entra por la izquierda; flechas de ordenación con rebote;

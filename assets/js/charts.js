@@ -454,20 +454,25 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26
 
 /* -------------------------------------------- barras apiladas por serie -- */
 
-export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 28, animate = true }) {
+export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 28, animate = true, modo = 'apilado' }) {
   ensureDefs();
   clear(host);
   if (!rows.length || !series.length) return emptyState(host);
 
+  const agrupado = modo === 'agrupado';
   const { wrapped, lineCount, labelW } = layoutLabels(rows, { maxChars: maxLabel, minW: 130, maxW: 230 });
-  const rowH = Math.max(33, lineCount * LINE_H + 16);
+  const rowH = Math.max(agrupado ? 24 + series.length * 12 : 33, lineCount * LINE_H + 16);
   const padT = 8;
   const padB = 26;
   const valueW = 68;
   const width = Math.max(host.clientWidth || 700, 460);
   const plotW = Math.max(100, width - labelW - valueW);
   const height = padT + rows.length * rowH + padB;
-  const max = Math.max(...rows.map((r) => r.total), 1);
+  // Agrupado compara series entre sí, así que la escala es la del mayor
+  // segmento, no la del total de la fila.
+  const max = agrupado
+    ? Math.max(...rows.flatMap((r) => series.map((s) => r.parts[s.id] || 0)), 1)
+    : Math.max(...rows.map((r) => r.total), 1);
   const ticks = niceTicks(max);
   const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
 
@@ -476,7 +481,7 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
     viewBox: `0 0 ${width} ${height}`,
     width,
     height,
-    'aria-label': `Barras apiladas por ${series.map((s) => s.nombre).join(', ')}`,
+    'aria-label': `Barras ${agrupado ? 'agrupadas' : 'apiladas'} por ${series.map((s) => s.nombre).join(', ')}`,
   });
 
   for (const t of ticks) {
@@ -487,30 +492,48 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
   root.append(svg('line', { class: 'chart__axis', x1: labelW, y1: padT, x2: labelW, y2: padT + rows.length * rowH }));
 
   rows.forEach((r, i) => {
-    const bh = Math.min(BAR_MAX, rowH - 10);
-    const y = padT + i * rowH + (rowH - bh) / 2;
+    const alto = rowH - 10;
     const label = String(r.key);
     const active = series.filter((s) => (r.parts[s.id] || 0) > 0);
+    const bh = agrupado
+      ? Math.max(4, Math.min(13, (alto - (active.length - 1) * 2) / Math.max(1, active.length)))
+      : Math.min(BAR_MAX, alto);
+    const y = padT + i * rowH + (rowH - (agrupado ? active.length * (bh + 2) - 2 : bh)) / 2;
 
     const segsG = svg('g', { class: 'chart__segs' });
-    let x = labelW;
-    active.forEach((s, k) => {
-      const v = r.parts[s.id] || 0;
-      const isLast = k === active.length - 1;
-      // El hueco de 2 px lo aporta la superficie: nunca un borde dibujado.
-      const raw = scale(v);
-      const w = Math.max(1.5, isLast ? raw : raw - GAP);
-      segsG.append(...glassMark(barPath(x, y, w, bh, isLast ? 'right' : 'square'), s.fill, s.id));
-      x += raw;
-    });
+    if (agrupado) {
+      // Una barra por serie, apoyadas todas en el mismo eje: comparar entre
+      // sedes deja de exigir medir segmentos desplazados.
+      active.forEach((s, k) => {
+        const v = r.parts[s.id] || 0;
+        const yy = y + k * (bh + 2);
+        segsG.append(...glassMark(barPath(labelW, yy, Math.max(1.5, scale(v)), bh, 'right'), s.fill, s.id));
+      });
+    } else {
+      let x = labelW;
+      active.forEach((s, k) => {
+        const v = r.parts[s.id] || 0;
+        const isLast = k === active.length - 1;
+        // El hueco de 2 px lo aporta la superficie: nunca un borde dibujado.
+        const raw = scale(v);
+        const w = Math.max(1.5, isLast ? raw : raw - GAP);
+        segsG.append(...glassMark(barPath(x, y, w, bh, isLast ? 'right' : 'square'), s.fill, s.id));
+        x += raw;
+      });
+    }
 
-    const val = svg('text', { class: 'chart__val', x: labelW + scale(r.total) + 9, y: y + bh / 2 + 4 }, fmt(r.total));
+    const anchoTot = agrupado ? scale(Math.max(...active.map((s) => r.parts[s.id] || 0), 0)) : scale(r.total);
+    const val = svg(
+      'text',
+      { class: 'chart__val', x: labelW + anchoTot + 9, y: padT + i * rowH + rowH / 2 + 4 },
+      fmt(r.total)
+    );
     const hit = svg('rect', { class: 'chart__hit', x: 0, y: padT + i * rowH, width: labelW + plotW + valueW, height: rowH });
 
     const row = svg(
       'g',
       { class: 'chart__row' },
-      catLabel(wrapped[i], labelW - 11, y + bh / 2 + 4, label),
+      catLabel(wrapped[i], labelW - 11, padT + i * rowH + rowH / 2 + 4, label),
       segsG,
       val,
       hit
@@ -595,6 +618,115 @@ export function shareBar(host, { parts, unidad = 'unidades', animate = true }) {
     root.append(seg);
     x += raw;
   });
+
+  host.append(root);
+}
+
+/* ----------------------------------------------------------- anillo ----- */
+
+/**
+ * Anillo parte-del-todo. Reservado a repartos de pocos segmentos —seis como
+ * mucho—, con el total en el centro y cada porción rotulada fuera cuando cabe.
+ */
+export function donut(host, { parts, unidad = 'unidades', animate = true }) {
+  ensureDefs();
+  clear(host);
+  const total = parts.reduce((a, p) => a + p.value, 0);
+  if (!total) return emptyState(host);
+
+  const width = Math.max(host.clientWidth || 520, 340);
+  const height = 300;
+  const cx = width / 2;
+  const cy = height / 2 + 4;
+  const R = Math.min(112, height / 2 - 34);
+  const grosor = 34;
+  const GAP_ANG = 0.016;
+
+  const root = svg('svg', {
+    class: 'chart',
+    viewBox: `0 0 ${width} ${height}`,
+    width,
+    height,
+    role: 'img',
+    'aria-label': `Anillo: reparto de ${fmt(total)} ${unidad}`,
+  });
+
+  const punto = (ang, r) => [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r];
+
+  const arco = (desde, hasta) => {
+    const rExt = R;
+    const rInt = R - grosor;
+    const grande = hasta - desde > Math.PI ? 1 : 0;
+    const [x1, y1] = punto(desde, rExt);
+    const [x2, y2] = punto(hasta, rExt);
+    const [x3, y3] = punto(hasta, rInt);
+    const [x4, y4] = punto(desde, rInt);
+    return `M${x1},${y1}A${rExt},${rExt} 0 ${grande} 1 ${x2},${y2}L${x3},${y3}A${rInt},${rInt} 0 ${grande} 0 ${x4},${y4}Z`;
+  };
+
+  let ang = -Math.PI / 2;
+  parts.forEach((p, i) => {
+    const barrido = (p.value / total) * Math.PI * 2;
+    const desde = ang + GAP_ANG / 2;
+    const hasta = ang + barrido - GAP_ANG / 2;
+    ang += barrido;
+    if (hasta <= desde) return;
+
+    const d = arco(desde, hasta);
+    const marca = svg('path', { class: 'chart__mark', d, fill: p.fill, 'data-serie': p.id || null });
+    const brillo = svg('path', { class: 'chart__gloss', d, fill: 'url(#simap-gloss)', 'pointer-events': 'none', 'data-serie': p.id || null });
+    const hit = svg('path', { class: 'chart__hit', d, 'stroke-width': 0 });
+    const seg = svg('g', { class: 'chart__row' }, marca, brillo, hit);
+
+    // Rótulo fuera del anillo, sólo si la porción da holgura suficiente.
+    const pct = (p.value / total) * 100;
+    if (barrido > 0.34) {
+      const medio = (desde + hasta) / 2;
+      const [lx, ly] = punto(medio, R + 17);
+      seg.append(
+        svg(
+          'text',
+          {
+            class: 'chart__val',
+            x: lx,
+            y: ly + 4,
+            'text-anchor': Math.cos(medio) > 0.15 ? 'start' : Math.cos(medio) < -0.15 ? 'end' : 'middle',
+          },
+          `${pct.toFixed(1)} %`
+        )
+      );
+    }
+
+    if (animate && !prefersReduced() && marca.animate) {
+      for (const el of [marca, brillo]) {
+        el.style.transformBox = 'fill-box';
+        el.style.transformOrigin = 'center';
+        retire(
+          el.animate(
+            [{ opacity: 0, transform: 'scale(0.86)' }, { opacity: 1, transform: 'scale(1)' }],
+            { duration: 620, delay: i * 90, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
+          ),
+          el
+        );
+      }
+    }
+
+    bindRow(root, hit, seg, () => ({
+      title: p.nombre,
+      rows: [
+        { label: unidad, value: fmt(p.value), color: p.color },
+        { label: 'Participación', value: `${pct.toFixed(1)} %` },
+      ],
+      total: { label: 'Total', value: fmt(total) },
+    }));
+
+    root.append(seg);
+  });
+
+  root.append(
+    svg('text', { class: 'chart__centro-val', x: cx, y: cy - 2, 'text-anchor': 'middle' }, fmtCompact(total)),
+    svg('text', { class: 'chart__centro-lbl', x: cx, y: cy + 18, 'text-anchor': 'middle' }, unidad)
+  );
 
   host.append(root);
 }
@@ -919,7 +1051,7 @@ export function chartCard({ title, sub, span = 'col-6', legendEl, render, table,
       'header',
       { class: 'card__head' },
       h('div', {}, h('h3', { class: 'card__title' }, title), sub ? h('div', { class: 'card__sub' }, sub) : null),
-      h('div', { class: 'chart-tools' }, tools || null, toggle)
+      h('div', { class: 'chart-tools' }, Array.isArray(tools) ? tools : tools || null, toggle)
     ),
     body
   );

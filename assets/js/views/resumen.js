@@ -3,6 +3,7 @@
 import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced, displayTitle } from '../util.js';
 import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre } from '../state.js';
 import { filters, filterBar, onFilters, hasActiveFilters, setFilter } from '../filters.js';
+import { glassSelect, segmented } from '../ui.js';
 import {
   barsH,
   stackedBarsH,
@@ -15,6 +16,7 @@ import {
   seriesColor,
   seriesFill,
   observeResize,
+  donut,
 } from '../charts.js';
 
 const TOP_TIPOS = 14;
@@ -153,7 +155,7 @@ function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
       hero: true,
       index: 0,
     }),
-    tile({ label: 'Tipologías', num: s.tipologias, animate, note: `${fmt(s.medidas)} medidas distintas`, index: 1 }),
+    tile({ label: 'Tipologías', num: s.tipologias, animate, note: `${fmt(s.medidas)} medidas distintas`, index: 1, acento: 'var(--series-1)' }),
     tile({
       label: 'Sedes y proyectos',
       num: data.ubicaciones.length,
@@ -165,6 +167,7 @@ function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
         .map((u) => `Mayor volumen: ${u.nombre}`)
         .join(''),
       index: 2,
+      acento: 'var(--series-3)',
     }),
     tile({
       label: 'Unidades compradas',
@@ -172,6 +175,7 @@ function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
       animate,
       note: `${fmt(s.porCompra.length)} compras fechadas`,
       index: 3,
+      acento: 'var(--series-4)',
     }),
     tile({
       label: 'Consistencia',
@@ -183,11 +187,12 @@ function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
         : 'propietario y sede cuadran en todas las referencias',
       alert: descuadre > 0,
       index: 4,
+      acento: descuadre ? 'var(--critical)' : 'var(--series-2)',
     })
   );
 }
 
-function tile({ label, value, num = null, from = 0, animate = true, note, hero = false, alert = false, index = 0 }) {
+function tile({ label, value, num = null, from = 0, animate = true, note, hero = false, alert = false, index = 0, acento = null }) {
   const valueEl = h(
     'div',
     { class: `tile__value ${hero ? 'tile__value--hero' : ''}` },
@@ -196,7 +201,7 @@ function tile({ label, value, num = null, from = 0, animate = true, note, hero =
 
   const el = h(
     'article',
-    { class: `tile glass reveal ${hero ? 'tile--hero' : ''}`, style: { '--i': index } },
+    { class: `tile glass reveal ${hero ? 'tile--hero' : ''}`, style: { '--i': index, ...(acento ? { '--acento': acento } : {}) } },
     h('div', { class: 'tile__label' }, label),
     valueEl,
     note ? h('div', { class: `tile__note ${alert ? 'tile__note--alert' : ''}` }, note) : null
@@ -228,22 +233,42 @@ const vista = {
   sedesOcultas: new Set(),
   topTipos: TOP_TIPOS,
   topMedidas: TOP_MEDIDAS,
+  formaReparto: 'barra',   // barra | anillo
+  formaCruce: 'apilado',   // apilado | agrupado
+  ordenTipos: 'valor',     // valor | nombre
 };
 
 function selectorTop(valor, total, onChange) {
   const opciones = [10, 15, 25, 40].filter((n) => n < total);
   opciones.push(total);
-  return h(
-    'select',
-    {
-      class: 'mini-select',
-      'aria-label': 'Cuántas filas mostrar',
-      onchange: (e) => onChange(Number(e.target.value)),
-    },
-    opciones.map((n) =>
-      h('option', { value: n, selected: n === valor }, n >= total ? `Todas (${fmt(total)})` : `Top ${n}`)
-    )
-  );
+  return glassSelect({
+    value: valor,
+    compact: true,
+    buscable: false,
+    ariaLabel: 'Cuántas filas mostrar',
+    options: opciones.map((n) => ({ value: n, label: n >= total ? `Todas (${fmt(total)})` : `Top ${n}` })),
+    onChange: (v) => onChange(Number(v)),
+  });
+}
+
+function selectorOrden(valor, onChange) {
+  return glassSelect({
+    value: valor,
+    compact: true,
+    buscable: false,
+    ariaLabel: 'Criterio de orden',
+    options: [
+      { value: 'valor', label: 'Por volumen' },
+      { value: 'nombre', label: 'Alfabético' },
+    ],
+    onChange,
+  });
+}
+
+/** Aplica el criterio de orden elegido a una lista ya agregada. */
+function ordenar(filas, criterio) {
+  if (criterio !== 'nombre') return filas;
+  return filas.slice().sort((a, b) => String(a.key).localeCompare(String(b.key), 'es'));
 }
 
 function renderCards(grid, data, items, s, repintar) {
@@ -277,7 +302,23 @@ function renderCards(grid, data, items, s, repintar) {
     sub: 'Reparto de unidades entre sedes y proyectos · pulse una sede en la leyenda para apartarla',
     span: 'col-12',
     legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
-    render: (el, o) => shareBar(el, { parts: repartoParts, unidad: 'unidades', ...o }),
+    tools: segmented({
+      value: vista.formaReparto,
+      ariaLabel: 'Forma del gráfico',
+      options: [
+        { value: 'barra', label: 'Barra', icon: '▭' },
+        { value: 'anillo', label: 'Anillo', icon: '◎' },
+      ],
+      onChange: (v) => {
+        vista.formaReparto = v;
+        repintar();
+      },
+    }),
+    minHeight: vista.formaReparto === 'anillo',
+    render: (el, o) =>
+      vista.formaReparto === 'anillo'
+        ? donut(el, { parts: repartoParts, unidad: 'unidades', ...o })
+        : shareBar(el, { parts: repartoParts, unidad: 'unidades', ...o }),
     table: () =>
       simpleTable(
         [
@@ -293,17 +334,23 @@ function renderCards(grid, data, items, s, repintar) {
   grid.append(cardReparto);
 
   /* 2 · tipologías ------------------------------------------------------- */
-  const tipoRows = topRows(s.porTipo, vista.topTipos);
+  const tipoRows = ordenar(topRows(s.porTipo, vista.topTipos), vista.ordenTipos);
   grid.append(
     chartCard({
       title: 'Existencias por tipología',
       index: 1,
       sub: 'Pulse una barra para filtrar el tablero por esa tipología',
       span: 'col-8',
-      tools: selectorTop(vista.topTipos, s.porTipo.length, (n) => {
-        vista.topTipos = n;
-        repintar();
-      }),
+      tools: [
+        selectorOrden(vista.ordenTipos, (v) => {
+          vista.ordenTipos = v;
+          repintar();
+        }),
+        selectorTop(vista.topTipos, s.porTipo.length, (n) => {
+          vista.topTipos = n;
+          repintar();
+        }),
+      ],
       render: (el, o) =>
         barsH(el, {
           rows: tipoRows,
@@ -373,7 +420,20 @@ function renderCards(grid, data, items, s, repintar) {
     sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
     span: 'col-12',
     legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
-    render: (el, o) => stackedBarsH(el, { rows: cross, series: visibles, unidad: 'unidades', ...o }),
+    tools: segmented({
+      value: vista.formaCruce,
+      ariaLabel: 'Disposición de las series',
+      options: [
+        { value: 'apilado', label: 'Apilado', icon: '▤' },
+        { value: 'agrupado', label: 'Agrupado', icon: '▥' },
+      ],
+      onChange: (v) => {
+        vista.formaCruce = v;
+        repintar();
+      },
+    }),
+    render: (el, o) =>
+      stackedBarsH(el, { rows: cross, series: visibles, unidad: 'unidades', modo: vista.formaCruce, ...o }),
     table: () =>
       simpleTable(
         [
