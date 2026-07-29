@@ -3,9 +3,14 @@
 
 import { h, debounce } from './util.js';
 import { glassSelect } from './ui.js';
+import { categoriaDe } from './state.js';
+import { nombreCategoria } from './categorias.js';
+
+const cuentaTipos = (data, cat) => data.tipos.filter((t) => categoriaDe(data, t) === cat).length;
 
 export const filters = {
   q: '',
+  categoria: '',
   tipos: [],
   ubicacion: '',
   propietario: '',
@@ -32,20 +37,20 @@ export function setFilter(patch) {
 
 export function resetFilters() {
   Object.assign(filters, {
-    q: '', tipos: [], ubicacion: '', propietario: '', compra: '',
+    q: '', categoria: '', tipos: [], ubicacion: '', propietario: '', compra: '',
     soloDescuadre: false, soloConStock: false,
   });
   fire();
 }
 
 export const hasActiveFilters = () =>
-  !!(filters.q || filters.tipos.length || filters.ubicacion || filters.propietario ||
-     filters.compra || filters.soloDescuadre || filters.soloConStock);
+  !!(filters.q || filters.categoria || filters.tipos.length || filters.ubicacion ||
+     filters.propietario || filters.compra || filters.soloDescuadre || filters.soloConStock);
 
 /** Cuántos filtros hay puestos, para avisarlo en la propia barra. */
 export const countActiveFilters = () =>
-  [filters.q, filters.tipos.length, filters.ubicacion, filters.propietario, filters.compra,
-   filters.soloDescuadre, filters.soloConStock].filter(Boolean).length;
+  [filters.q, filters.categoria, filters.tipos.length, filters.ubicacion, filters.propietario,
+   filters.compra, filters.soloDescuadre, filters.soloConStock].filter(Boolean).length;
 
 /** Construye la barra de filtros para una vista. */
 export function filterBar(data, { showDescuadre = true, note } = {}) {
@@ -58,13 +63,42 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     oninput: debounce((e) => setFilter({ q: e.target.value }), 200),
   });
 
+  const catSel = glassSelect({
+    value: filters.categoria,
+    ariaLabel: 'Filtrar por categoría',
+    placeholder: 'Todas',
+    options: [
+      { value: '', label: 'Todas' },
+      ...data.categorias.map((c) => ({
+        value: c.id,
+        label: c.nombre,
+        color: `var(--cat-${c.id})`,
+        hint: `${cuentaTipos(data, c.id)} tipologías`,
+      })),
+    ],
+    onChange: (v) => {
+      /* Cambiar de categoría deja huérfana la tipología elegida si no
+         pertenece a ella: en ese caso se suelta, no se contradicen. */
+      const tipo = filters.tipos[0];
+      const suelta = tipo && v && categoriaDe(data, tipo) !== v;
+      setFilter({ categoria: v, ...(suelta ? { tipos: [] } : {}) });
+    },
+  });
+
+  /* La lista de tipologías se acota a la categoría puesta: con 50 nombres,
+     mostrar los 31 que no vienen al caso sólo estorba. */
+  const tiposVisibles = () =>
+    filters.categoria ? data.tipos.filter((t) => categoriaDe(data, t) === filters.categoria) : data.tipos;
+
+  // Se conserva la referencia: su rótulo cuenta las tipologías realmente ofrecidas.
+  const opTodasTipos = { value: '', label: `Todas (${data.tipos.length})` };
   const tipoSel = glassSelect({
     value: filters.tipos[0] || '',
     ariaLabel: 'Filtrar por tipología',
-    placeholder: `Todas (${data.tipos.length})`,
+    placeholder: opTodasTipos.label,
     options: [
-      { value: '', label: `Todas (${data.tipos.length})` },
-      ...data.tipos.map((t) => ({ value: t, label: t })),
+      opTodasTipos,
+      ...data.tipos.map((t) => ({ value: t, label: t, hint: nombreCategoria(categoriaDe(data, t)) })),
     ],
     onChange: (v) => setFilter({ tipos: v ? [v] : [] }),
   });
@@ -120,6 +154,10 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
      tablero—, así que los controles se sincronizan con el estado real. */
   const sincronizar = () => {
     if (qInput.value !== filters.q) qInput.value = filters.q;
+    catSel._set(filters.categoria);
+    const visibles = new Set(tiposVisibles());
+    opTodasTipos.label = `Todas (${visibles.size})`;
+    tipoSel._filtrar((op) => !op.value || visibles.has(op.value));
     tipoSel._set(filters.tipos[0] || '');
     ubicSel._set(filters.ubicacion);
     propSel._set(filters.propietario);
@@ -134,6 +172,7 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
     'section',
     { class: 'filterbar glass reveal', 'aria-label': 'Filtros del inventario' },
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Buscar'), qInput),
+    h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Categoría'), catSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Tipología'), tipoSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Ubicación / proyecto'), ubicSel),
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Propietario'), propSel),
@@ -162,7 +201,7 @@ export function filterBar(data, { showDescuadre = true, note } = {}) {
   sincronizar();
   bar._dispose = () => {
     off();
-    for (const sel of [tipoSel, ubicSel, propSel, compraSel]) sel._dispose();
+    for (const sel of [catSel, tipoSel, ubicSel, propSel, compraSel]) sel._dispose();
   };
   return bar;
 }

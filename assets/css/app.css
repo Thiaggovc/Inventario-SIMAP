@@ -62,6 +62,11 @@
   --series-4-lift: #e3be33;
   --series-5-lift: #a7699a;
 
+  /* Las dos familias del catálogo. Ranuras contiguas de la paleta: el orden
+     ya garantiza que el par se distinga también bajo daltonismo. */
+  --cat-formaletas: var(--series-1);
+  --cat-accesorios: var(--series-2);
+
   /* Rampa secuencial azul */
   --seq-100: #cde4f7;
   --seq-300: #7fbbea;
@@ -1668,13 +1673,18 @@ table.data tfoot td {
 :root {
   --boot-a: #f7fafd;
   --boot-b: #e6edf6;
-  --boot-panel-a: rgba(255, 255, 255, 0.97);
-  --boot-panel-b: rgba(240, 245, 251, 0.9);
-  --boot-edge: rgba(255, 255, 255, 0.9);
-  --boot-spec: rgba(255, 255, 255, 1);
-  --boot-sheen: rgba(255, 255, 255, 0.85);
-  --boot-shadow: 0 2px 6px rgba(9, 30, 50, 0.08), 0 34px 80px rgba(9, 30, 50, 0.18);
-  --boot-pista: rgba(0, 115, 196, 0.14);
+  /* Cristal de verdad: translúcido, no casi opaco. Lo que se ve detrás son
+     los focos de color que derivan bajo el panel. */
+  --boot-panel-a: rgba(255, 255, 255, 0.62);
+  --boot-panel-b: rgba(233, 242, 251, 0.4);
+  --boot-edge: rgba(255, 255, 255, 0.75);
+  --boot-spec: rgba(255, 255, 255, 0.95);
+  --boot-sheen: rgba(255, 255, 255, 0.6);
+  --boot-shadow: 0 2px 6px rgba(9, 30, 50, 0.07), 0 40px 90px rgba(9, 30, 50, 0.2);
+  --boot-pista: rgba(0, 115, 196, 0.16);
+  --boot-blob-1: rgba(0, 115, 196, 0.2);
+  --boot-blob-2: rgba(37, 80, 111, 0.14);
+  --boot-blob-3: rgba(120, 180, 235, 0.26);
   --boot-pct: rgba(0, 115, 196, 0.72);
 }
 
@@ -1682,13 +1692,17 @@ table.data tfoot td {
 :root:where(:not([data-theme="light"])) {
   --boot-a: #121821;
   --boot-b: #070a0e;
-  --boot-panel-a: rgba(28, 36, 48, 0.92);
-  --boot-panel-b: rgba(15, 20, 28, 0.88);
-  --boot-edge: rgba(255, 255, 255, 0.1);
-  --boot-spec: rgba(255, 255, 255, 0.14);
-  --boot-sheen: rgba(255, 255, 255, 0.09);
-  --boot-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 34px 80px rgba(0, 0, 0, 0.6);
-  --boot-pista: rgba(120, 180, 235, 0.18);
+  --boot-panel-a: rgba(24, 33, 45, 0.68);
+  --boot-panel-b: rgba(8, 12, 18, 0.6);
+  --boot-edge: rgba(255, 255, 255, 0.14);
+  --boot-spec: rgba(255, 255, 255, 0.2);
+  --boot-sheen: rgba(255, 255, 255, 0.12);
+  --boot-shadow: 0 2px 6px rgba(0, 0, 0, 0.45), 0 40px 90px rgba(0, 0, 0, 0.62);
+  --boot-pista: rgba(120, 180, 235, 0.2);
+  --boot-brillo: brightness(0.94);
+  --boot-blob-1: rgba(0, 115, 196, 0.42);
+  --boot-blob-2: rgba(37, 80, 111, 0.44);
+  --boot-blob-3: rgba(70, 140, 205, 0.26);
   /* Sobre panel oscuro el azul de marca no llega a 4,5:1 en cuerpo 10: la
      línea de estado sube de tono; el nombre, en cuerpo 34 y peso 800, se
      queda en el #0073C4 exacto de la marca. */
@@ -1704,13 +1718,84 @@ table.data tfoot td {
   padding: 44px 44px 34px;
   border-radius: 26px;
   background: linear-gradient(158deg, var(--boot-panel-a), var(--boot-panel-b));
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(200%) var(--boot-brillo, brightness(1.04));
+  -webkit-backdrop-filter: blur(34px) saturate(200%) var(--boot-brillo, brightness(1.04));
   border: 1px solid var(--boot-edge);
-  box-shadow: var(--boot-shadow), inset 0 1px 0 var(--boot-spec);
+  box-shadow: var(--boot-shadow), inset 0 1px 0 var(--boot-spec),
+    inset 0 -1px 0 color-mix(in srgb, var(--boot-spec) 40%, transparent);
   text-align: center;
   overflow: hidden;
   animation: boot-panel 760ms var(--ease-out) both;
+}
+
+/* Anillo especular: sólo el filo, como el canto pulido de una lente. */
+.boot__panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(150deg, var(--boot-spec), transparent 38%, transparent 62%, var(--boot-spec));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Focos de color que derivan detrás del panel: sin ellos el desenfoque no
+   tiene nada que desenfocar y el «cristal» se queda en un rectángulo liso. */
+.boot__campo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.boot__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+.boot__blob--1 {
+  width: 44vmax;
+  height: 44vmax;
+  left: 24%;
+  top: 12%;
+  background: var(--boot-blob-1);
+  animation: boot-blob-1 9s var(--ease-soft) infinite alternate;
+}
+.boot__blob--2 {
+  width: 36vmax;
+  height: 36vmax;
+  left: 58%;
+  top: 58%;
+  background: var(--boot-blob-2);
+  animation: boot-blob-2 11s var(--ease-soft) infinite alternate;
+}
+.boot__blob--3 {
+  width: 30vmax;
+  height: 30vmax;
+  left: 62%;
+  top: 18%;
+  background: var(--boot-blob-3);
+  animation: boot-blob-3 8s var(--ease-soft) infinite alternate;
+}
+
+@keyframes boot-blob-1 {
+  from { transform: translate(-9%, -6%) scale(0.9); }
+  to { transform: translate(8%, 7%) scale(1.12); }
+}
+@keyframes boot-blob-2 {
+  from { transform: translate(6%, 4%) scale(1.05); }
+  to { transform: translate(-11%, -9%) scale(0.86); }
+}
+@keyframes boot-blob-3 {
+  from { transform: translate(-5%, 8%) scale(0.94); }
+  to { transform: translate(10%, -7%) scale(1.16); }
 }
 
 @keyframes boot-panel {
@@ -1781,8 +1866,10 @@ table.data tfoot td {
   inset: 0;
   width: 0%;
   border-radius: 4px;
-  background: linear-gradient(90deg, #0073c4, #2a95dd 60%, #00c4ad);
-  box-shadow: 0 0 14px rgba(0, 115, 196, 0.45);
+  /* Sólo los dos azules de la marca: el verde de la paleta de apoyo no pinta
+     nada en el arranque. */
+  background: linear-gradient(90deg, #25506f, #0073c4 78%);
+  box-shadow: 0 0 16px rgba(0, 115, 196, 0.5);
   transition: width 120ms linear;
 }
 
@@ -1909,6 +1996,75 @@ table.data tfoot td {
 
 .chart__row.is-picked .chart__mark { filter: url(#simap-glow); }
 .chart__row.is-picked .chart__stem { opacity: 1; }
+
+/* ================================================ familias del catálogo == */
+
+/* Pastilla de familia: color plano de la ranura, texto en blanco o tinta según
+   lo pida el relleno. Acompaña a la tipología allí donde ésta aparece. */
+.cat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.cat-tag--formaletas {
+  color: var(--cat-formaletas);
+  background: color-mix(in srgb, var(--cat-formaletas) 14%, transparent);
+  border-color: color-mix(in srgb, var(--cat-formaletas) 32%, transparent);
+}
+.cat-tag--accesorios {
+  color: var(--cat-accesorios);
+  background: color-mix(in srgb, var(--cat-accesorios) 14%, transparent);
+  border-color: color-mix(in srgb, var(--cat-accesorios) 32%, transparent);
+}
+
+.cat-tag--btn {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform var(--dur-1) var(--ease-spring), box-shadow var(--dur-2) var(--ease-soft);
+}
+.cat-tag--btn:hover { transform: translateY(-1px) scale(1.03); box-shadow: var(--shadow-1); }
+.cat-tag--btn:active { transform: scale(0.96); }
+
+.rowmeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
+
+/* Lista de tipologías del diálogo de catálogos. */
+.tipolist {
+  display: grid;
+  gap: 2px;
+  max-height: 46vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.tipolist__row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-1) var(--ease-soft);
+}
+.tipolist__row:hover { background: var(--glass); }
+.tipolist__name { font-size: 12.5px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.tipolist__uso { white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .tipolist__row { grid-template-columns: 1fr auto; grid-template-areas: "n u" "c c"; }
+  .tipolist__name { grid-area: n; }
+  .tipolist__uso { grid-area: u; }
+  .cat-tag--btn { grid-area: c; justify-self: start; }
+}
 
 .pick-hint {
   font-size: 11.5px;

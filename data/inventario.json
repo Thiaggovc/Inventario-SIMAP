@@ -99,6 +99,16 @@
    "fecha": "2026-06-06"
   }
  ],
+ "categorias": [
+  {
+   "id": "formaletas",
+   "nombre": "Formaletas"
+  },
+  {
+   "id": "accesorios",
+   "nombre": "Accesorios"
+  }
+ ],
  "tipos": [
   "ANDAMIO",
   "ANGULARES",
@@ -151,6 +161,58 @@
   "VIGA ALINEADORA",
   "VIROLA"
  ],
+ "tiposCategoria": {
+  "ANDAMIO": "formaletas",
+  "ANGULARES": "accesorios",
+  "ANTEPECHO": "formaletas",
+  "CABALLETE": "accesorios",
+  "CARGADERAS": "accesorios",
+  "CENEFAS": "formaletas",
+  "CORBATA": "accesorios",
+  "CUÑA": "accesorios",
+  "DINTEL EXTERNO O CAP": "formaletas",
+  "DINTEL INTERNO CON CENEFA DE 10 CM": "formaletas",
+  "ESQUINERO ESPECIAL": "formaletas",
+  "ESQUINERO LOSA": "formaletas",
+  "ESQUINERO MURO EXTERNO": "formaletas",
+  "ESQUINERO MURO EXTERNO CON CENEFA": "formaletas",
+  "ESQUINERO MURO INTERNO": "formaletas",
+  "ESQUINERO MURO INTERNO CON CENEFA": "formaletas",
+  "FORMALETA DE LOSA": "formaletas",
+  "FORMALETA DE MURO": "formaletas",
+  "FORMALETA DE MURO CON ANGULO": "formaletas",
+  "FORMALETA DE MURO CON ANGULO Y CENEFA DE 10 CM": "formaletas",
+  "FORMALETA DE MURO CON ANGULO Y PESTAÑA": "formaletas",
+  "GATAS U": "accesorios",
+  "PALOMETAS": "accesorios",
+  "PANEL BORDE DE LOSA": "formaletas",
+  "PANEL CABEZAL EXTERNO": "formaletas",
+  "PANEL CABEZAL INTERNO": "formaletas",
+  "PANEL DE CIERRE DE LOSA": "formaletas",
+  "PANEL DE CIERRE INFERIOR": "formaletas",
+  "PANEL DE CIERRE LATERAL": "formaletas",
+  "PANEL DE CIERRE SUPERIOR (TAPAS)": "formaletas",
+  "PANOCHAS": "accesorios",
+  "PASADOR": "accesorios",
+  "PATA ESTABILIZADORA": "accesorios",
+  "PINGRAPA": "accesorios",
+  "POSTE DE SOPORTE AJUSTABLE": "accesorios",
+  "PUNTALES": "formaletas",
+  "REALCE DE FACHADA": "formaletas",
+  "REALCE DE MURO": "formaletas",
+  "SACACORBATAS": "accesorios",
+  "SACALAMINAS": "accesorios",
+  "TAPAMURO": "formaletas",
+  "TAPAMURO HORIZONTAL": "formaletas",
+  "TAPAMURO VERTICAL": "formaletas",
+  "TAPAS GUARDERAS": "accesorios",
+  "TENSOR": "formaletas",
+  "TORNILLO DE SOPORTE AJUSTABLE": "accesorios",
+  "TUBO": "formaletas",
+  "TUBO CUADRADO": "accesorios",
+  "VIGA ALINEADORA": "accesorios",
+  "VIROLA": "accesorios"
+ },
  "items": [
   {
    "id": "IT-0001",

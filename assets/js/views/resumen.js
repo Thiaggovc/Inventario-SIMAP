@@ -1,7 +1,7 @@
 /* Tablero de resumen: la lectura de la situación actual en un vistazo. */
 
 import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced, displayTitle } from '../util.js';
-import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre } from '../state.js';
+import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre, categoriaDe } from '../state.js';
 import { filters, filterBar, onFilters, hasActiveFilters, setFilter } from '../filters.js';
 import { glassSelect, segmented } from '../ui.js';
 import {
@@ -164,7 +164,14 @@ function renderTiles(host, data, s, { animate = true, from = 0 } = {}) {
       hero: true,
       index: 0,
     }),
-    tile({ label: 'Tipologías', num: s.tipologias, animate, note: `${fmt(s.medidas)} medidas distintas`, index: 1, acento: 'var(--series-1)' }),
+    tile({
+      label: 'Tipologías',
+      num: s.tipologias,
+      animate,
+      note: s.porCategoria.map((c) => `${fmt(c.tipologias)} ${c.nombre.toLowerCase()}`).join(' · '),
+      index: 1,
+      acento: 'var(--series-1)',
+    }),
     tile({
       label: 'Sedes y proyectos',
       num: data.ubicaciones.length,
@@ -322,7 +329,7 @@ function renderCards(grid, data, items, s, repintar) {
     title: 'Dónde está el inventario',
     index: 0,
     sub: 'Reparto de unidades entre sedes y proyectos · pulse una sede en la leyenda para apartarla',
-    span: 'col-12',
+    span: 'col-8',
     legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
     tools: segmented({
       value: vista.formaReparto,
@@ -353,14 +360,14 @@ function renderCards(grid, data, items, s, repintar) {
       ),
   });
   dependenSede.push(cardReparto);
-  grid.append(cardReparto);
+  grid.append(cardReparto, cardCategorias(data, s));
 
   /* 2 · tipologías ------------------------------------------------------- */
   const tipoRows = ordenar(topRows(s.porTipo, vista.topTipos), vista.ordenTipos);
   grid.append(
     chartCard({
       title: 'Existencias por tipología',
-      index: 1,
+      index: 2,
       sub: 'Pulse una tipología para filtrar el tablero por ella',
       span: 'col-8',
       acento: SLOT_TIPOS,
@@ -418,7 +425,7 @@ function renderCards(grid, data, items, s, repintar) {
 
   const cardProp = chartCard({
     title: 'Propiedad de los activos',
-    index: 2,
+    index: 3,
     sub: 'Unidades asignadas a cada propietario',
     span: '',
     minHeight: true,
@@ -453,7 +460,7 @@ function renderCards(grid, data, items, s, repintar) {
   const cross = crossTipoUbicacion(items, data.ubicaciones.filter((u) => !vista.sedesOcultas.has(u.id)), 12);
   const cardCross = chartCard({
     title: 'Tipología por sede',
-    index: 3,
+    index: 4,
     sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
     span: 'col-12',
     legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
@@ -501,7 +508,7 @@ function renderCards(grid, data, items, s, repintar) {
   grid.append(
     chartCard({
       title: 'Compras por fecha',
-      index: 4,
+      index: 5,
       sub: 'Unidades adquiridas en cada compra registrada',
       span: 'col-6',
       acento: SLOT_COMPRAS,
@@ -520,7 +527,7 @@ function renderCards(grid, data, items, s, repintar) {
     }),
     chartCard({
       title: 'Compras acumuladas',
-      index: 5,
+      index: 6,
       sub: 'Suma progresiva de las unidades adquiridas',
       span: 'col-6',
       acento: SLOT_ACUM,
@@ -560,7 +567,7 @@ function renderCards(grid, data, items, s, repintar) {
   grid.append(
     chartCard({
       title: 'Medidas con mayor existencia',
-      index: 6,
+      index: 7,
       sub: `${fmt(s.medidas)} medidas distintas en las referencias filtradas`,
       span: 'col-12',
       acento: SLOT_MEDIDAS,
@@ -601,6 +608,53 @@ function renderCards(grid, data, items, s, repintar) {
       note: s.porMedida.length > 200 ? 'La tabla muestra las 200 medidas de mayor volumen.' : null,
     })
   );
+}
+
+/* ------------------------------------------------------- categorías ----- */
+
+/**
+ * Reparto entre las dos familias del catálogo. Es la primera pregunta que se
+ * hace cualquiera que abre el tablero —cuánto es formaleta y cuánto accesorio—,
+ * así que va arriba, junto al reparto por sede.
+ */
+function cardCategorias(data, s) {
+  const partes = s.porCategoria
+    .map((c, i) => ({ ...c, color: seriesColor(i), colorLift: `var(--series-${(i % 5) + 1}-lift)` }))
+    .filter((c) => c.value > 0);
+  const total = partes.reduce((a, c) => a + c.value, 0);
+
+  return chartCard({
+    title: 'Formaletas y accesorios',
+    index: 1,
+    sub: 'Reparto del inventario entre las dos familias · pulse una para filtrar',
+    span: 'col-4',
+    minHeight: true,
+    legendEl: legend(partes),
+    render: (el, o) =>
+      barsH(el, {
+        rows: partes.map((c, i) => ({ key: c.nombre, value: c.value, slot: i, serie: c.id })),
+        unidad: 'unidades',
+        maxLabel: 14,
+        picked: data.categorias.find((c) => c.id === filters.categoria)?.nombre || null,
+        onPick: (r) => {
+          const fam = partes.find((c) => c.nombre === r.key);
+          if (fam) setFilter({ categoria: filters.categoria === fam.id ? '' : fam.id, tipos: [] });
+        },
+        ...o,
+      }),
+    table: () =>
+      simpleTable(
+        [
+          { key: 'c', label: 'Categoría', get: (r) => r.nombre },
+          { key: 't', label: 'Tipologías', num: true, get: (r) => fmt(r.tipologias) },
+          { key: 'r', label: 'Referencias', num: true, get: (r) => fmt(r.referencias) },
+          { key: 'u', label: 'Unidades', num: true, get: (r) => fmt(r.value) },
+          { key: 'p', label: 'Part.', num: true, get: (r) => (total ? ((r.value / total) * 100).toFixed(1) + ' %' : '—') },
+        ],
+        partes,
+        { c: 'Total', t: fmt(s.tipologias), r: fmt(s.referencias), u: fmt(total), p: '100,0 %' }
+      ),
+  });
 }
 
 function topRows(rows, n) {
@@ -697,7 +751,7 @@ function consistencyCard(data, s) {
 
   return h(
     'section',
-    { class: 'card glass reveal', style: { '--i': 7 } },
+    { class: 'card glass reveal', style: { '--i': 8 } },
     h(
       'header',
       { class: 'card__head' },

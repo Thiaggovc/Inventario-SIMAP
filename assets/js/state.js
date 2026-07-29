@@ -6,6 +6,7 @@
  */
 
 import { slug, sumValues, toInt, norm } from './util.js';
+import { CATEGORIAS, clasificarTipo, esCategoriaValida } from './categorias.js';
 
 export const LS_DATA = 'simap.inventario.v1';
 export const LS_META = 'simap.inventario.meta.v1';
@@ -46,7 +47,9 @@ export function emptyData() {
     ubicaciones: [],
     propietarios: [],
     compras: [],
+    categorias: CATEGORIAS.map((c) => ({ ...c })),
     tipos: [],
+    tiposCategoria: {},
     items: [],
   };
 }
@@ -61,7 +64,9 @@ export function normalizeData(raw) {
     ubicaciones: [],
     propietarios: [],
     compras: [],
+    categorias: CATEGORIAS.map((c) => ({ ...c })),
     tipos: [],
+    tiposCategoria: {},
     items: [],
   };
 
@@ -128,6 +133,14 @@ export function normalizeData(raw) {
   const tipos = new Set((Array.isArray(d.tipos) ? d.tipos : []).map((t) => String(t).trim().toUpperCase()).filter(Boolean));
   for (const it of data.items) tipos.add(it.tipo);
   data.tipos = Array.from(tipos).sort((a, b) => a.localeCompare(b, 'es'));
+
+  /* La clasificación guardada manda; el reparto por omisión sólo cubre lo que
+     llega sin clasificar —una tipología nueva o un Excel recién importado—. */
+  const guardadas = d.tiposCategoria && typeof d.tiposCategoria === 'object' ? d.tiposCategoria : {};
+  for (const t of data.tipos) {
+    const puesta = String(guardadas[t] || '').trim();
+    data.tiposCategoria[t] = esCategoriaValida(puesta) ? puesta : clasificarTipo(t);
+  }
 
   return data;
 }
@@ -277,6 +290,19 @@ export function newItem(data) {
 
 /* ----------------------------------------------------------- derivados -- */
 
+/** Categoría de una tipología, con reparto por omisión si aún no está puesta. */
+export function categoriaDe(data, tipo) {
+  return data?.tiposCategoria?.[tipo] || clasificarTipo(tipo);
+}
+
+/** Reasigna una tipología a otra categoría. Devuelve si algo cambió. */
+export function setCategoriaTipo(data, tipo, categoria) {
+  if (!esCategoriaValida(categoria)) return false;
+  if (data.tiposCategoria[tipo] === categoria) return false;
+  data.tiposCategoria[tipo] = categoria;
+  return true;
+}
+
 export const itemTotal = (it) => sumValues(it.ubicaciones);
 export const itemPropTotal = (it) => sumValues(it.propietarios);
 export const itemCompras = (it) => sumValues(it.compras);
@@ -290,6 +316,7 @@ export const itemDescuadre = (it) => itemPropTotal(it) - itemTotal(it);
 export function filterItems(data, f = {}) {
   const q = norm(f.q || '');
   const tipos = f.tipos && f.tipos.length ? new Set(f.tipos) : null;
+  const categoria = f.categoria || '';
   const ubic = f.ubicacion || '';
   const prop = f.propietario || '';
   const compra = f.compra || '';
@@ -299,6 +326,7 @@ export function filterItems(data, f = {}) {
   return data.items.filter((it) => {
     if (soloConStock && itemTotal(it) === 0) return false;
     if (tipos && !tipos.has(it.tipo)) return false;
+    if (categoria && categoriaDe(data, it.tipo) !== categoria) return false;
     if (ubic && !it.ubicaciones[ubic]) return false;
     if (prop && !it.propietarios[prop]) return false;
     if (compra && !it.compras[compra]) return false;
@@ -352,6 +380,14 @@ export function summarize(data, items, ubicacionFiltro = '') {
   const porMedida = aggregate(items, (it) => it.medida || 'NO APLICA', qty)
     .sort((a, b) => b.value - a.value || String(a.key).localeCompare(String(b.key), 'es'));
 
+  const porCategoria = data.categorias.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    value: items.reduce((a, it) => a + (categoriaDe(data, it.tipo) === c.id ? qty(it) : 0), 0),
+    referencias: items.filter((it) => categoriaDe(data, it.tipo) === c.id).length,
+    tipologias: new Set(items.filter((it) => categoriaDe(data, it.tipo) === c.id).map((it) => it.tipo)).size,
+  }));
+
   const descuadres = items.filter((it) => itemDescuadre(it) !== 0);
   const sinUbicar = items.filter((it) => itemTotal(it) === 0 && itemCompras(it) > 0);
 
@@ -366,6 +402,7 @@ export function summarize(data, items, ubicacionFiltro = '') {
     porCompra: porCompra.filter((c) => c.fecha).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     porTipo,
     porMedida,
+    porCategoria,
     descuadres,
     sinUbicar,
   };

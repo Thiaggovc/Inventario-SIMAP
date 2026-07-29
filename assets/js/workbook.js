@@ -7,7 +7,8 @@
  */
 
 import { readXlsx, writeXlsx, toCsv, parseCsv } from './xlsx.js';
-import { normFecha, normalizeData, itemTotal, itemPropTotal, itemDescuadre } from './state.js';
+import { normFecha, normalizeData, itemTotal, itemPropTotal, itemDescuadre, categoriaDe } from './state.js';
+import { nombreCategoria, esCategoriaValida, CATEGORIAS } from './categorias.js';
 import { slug, norm, toInt, sumValues } from './util.js';
 
 const G_UBIC = 'PROYECTO / UBICACIÓN';
@@ -31,7 +32,7 @@ function inventarioSheet(data) {
   const cCp = cPr + pr.length;
   const cTot = cCp + cp.length;
   const cExtra = cTot + 3;
-  const width = cExtra + 2;
+  const width = cExtra + 3;
 
   const blank = () => new Array(width).fill(null);
 
@@ -63,8 +64,9 @@ function inventarioSheet(data) {
   nombres[cTot] = 'TOTAL UBICADO';
   nombres[cTot + 1] = 'TOTAL PROPIETARIO';
   nombres[cTot + 2] = 'DIFERENCIA';
-  nombres[cExtra] = 'NOTA';
-  nombres[cExtra + 1] = 'ID';
+  nombres[cExtra] = 'CATEGORÍA';
+  nombres[cExtra + 1] = 'NOTA';
+  nombres[cExtra + 2] = 'ID';
 
   const fechas = blank();
   fechas[cCp - 1] = 'FECHA DE COMPRA →';
@@ -83,8 +85,9 @@ function inventarioSheet(data) {
     r[cTot] = itemTotal(it);
     r[cTot + 1] = itemPropTotal(it);
     r[cTot + 2] = itemDescuadre(it);
-    r[cExtra] = it.nota || null;
-    r[cExtra + 1] = it.id;
+    r[cExtra] = nombreCategoria(categoriaDe(data, it.tipo));
+    r[cExtra + 1] = it.nota || null;
+    r[cExtra + 2] = it.id;
     rows.push(r);
   }
 
@@ -93,8 +96,9 @@ function inventarioSheet(data) {
   widths[cTipo] = 42;
   widths[cMedida] = 26;
   for (let i = cUb; i < cCp; i++) widths[i] = 15;
-  widths[cExtra] = 30;
-  widths[cExtra + 1] = 10;
+  widths[cExtra] = 14;
+  widths[cExtra + 1] = 30;
+  widths[cExtra + 2] = 10;
 
   return { name: 'INVENTARIO', rows, widths, headerRows: 0, freeze: 6, _header: { grupos: 4, nombres: 5 } };
 }
@@ -190,11 +194,12 @@ function comprasSheet(data) {
 }
 
 function catalogosSheet(data) {
-  const rows = [['CATÁLOGOS'], [], ['TIPOLOGÍAS', 'UBICACIONES / PROYECTOS', 'ID UBICACIÓN', 'PROPIETARIOS', 'ID PROPIETARIO']];
+  const rows = [['CATÁLOGOS'], [], ['TIPOLOGÍAS', 'CATEGORÍA', 'UBICACIONES / PROYECTOS', 'ID UBICACIÓN', 'PROPIETARIOS', 'ID PROPIETARIO']];
   const n = Math.max(data.tipos.length, data.ubicaciones.length, data.propietarios.length);
   for (let i = 0; i < n; i++) {
     rows.push([
       data.tipos[i] || null,
+      data.tipos[i] ? nombreCategoria(categoriaDe(data, data.tipos[i])) : null,
       data.ubicaciones[i]?.nombre || null,
       data.ubicaciones[i]?.id || null,
       data.propietarios[i]?.nombre || null,
@@ -252,6 +257,7 @@ const RE_GRUPO_TOT = /^totales$|^total/;
 const RE_COMPRA = /compra/;
 const RE_NOTA = /^nota$|observac/;
 const RE_ID = /^id$/;
+const RE_CAT = /^categoria$|^familia$/;
 const RE_IGNORAR = /^grafico$|^imagen$|^foto$|^inventario$|^diferencia$|^total|^estado$|^control$/;
 
 const cellText = (v) => (v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
@@ -282,6 +288,7 @@ function findHeader(rows) {
     const cNum = row.findIndex((c) => RE_NUM.test(cellNorm(c)));
     const cNota = names.findIndex((c) => RE_NOTA.test(cellNorm(c)));
     const cId = names.findIndex((c) => RE_ID.test(cellNorm(c)));
+    const cCat = names.findIndex((c) => RE_CAT.test(cellNorm(c)));
 
     // Fila de fechas: la inmediatamente inferior a los nombres si trae fechas.
     let datesRow = -1;
@@ -301,6 +308,7 @@ function findHeader(rows) {
       cNum,
       cNota,
       cId,
+      cCat,
       cUb,
       cPr,
       cCp,
@@ -320,13 +328,16 @@ function sheetToData(rows, meta = {}) {
   const width = Math.max(...rows.slice(0, H.dataRow + 5).map((r) => (r ? r.length : 0)), names.length);
 
   const upperBound = (start) => {
-    const candidates = [H.cPr, H.cCp, H.cTot, H.cNota, H.cId, width].filter((v) => v > start);
+    const candidates = [H.cPr, H.cCp, H.cTot, H.cCat, H.cNota, H.cId, width].filter((v) => v > start);
     return candidates.length ? Math.min(...candidates) : width;
   };
 
   const ubicaciones = [];
   const propietarios = [];
   const compras = [];
+  /* La categoría viaja repetida en cada fila del inventario; aquí se recoge por
+     tipología para no perder una reasignación hecha a mano en el Excel. */
+  const tiposCategoria = {};
   const colUb = [];
   const colPr = [];
   const colCp = [];
@@ -384,6 +395,11 @@ function sheetToData(rows, meta = {}) {
       return out;
     };
 
+    if (H.cCat >= 0) {
+      const puesta = CATEGORIAS.find((c) => norm(c.nombre) === cellNorm(row[H.cCat]))?.id || cellNorm(row[H.cCat]);
+      if (esCategoriaValida(puesta)) tiposCategoria[tipo.toUpperCase()] = puesta;
+    }
+
     items.push({
       id: (H.cId >= 0 && cellText(row[H.cId])) || `IT-${String(seq).padStart(4, '0')}`,
       n: (H.cNum >= 0 ? toInt(row[H.cNum]) : 0) || seq,
@@ -418,26 +434,40 @@ function sheetToData(rows, meta = {}) {
     propietarios,
     compras,
     tipos: [],
+    tiposCategoria,
     items,
   };
 }
 
-/** Tipologías declaradas en la hoja de catálogos, aunque no tengan existencias. */
+/**
+ * Tipologías declaradas en la hoja de catálogos, aunque no tengan existencias,
+ * con su categoría si la hoja la trae. Las que no aparecen en ninguna fila del
+ * inventario —tres, ahora mismo— sólo pueden clasificarse desde aquí.
+ */
 function catalogTipos(sheets) {
-  const out = [];
+  const tipos = [];
+  const categorias = {};
   for (const s of sheets) {
     for (let r = 0; r < Math.min(s.rows.length, 15); r++) {
       const row = s.rows[r] || [];
       const c = row.findIndex((v) => /^tipologias$/.test(cellNorm(v)));
       if (c < 0) continue;
+      const cCat = row.findIndex((v) => RE_CAT.test(cellNorm(v)));
       for (let i = r + 1; i < s.rows.length; i++) {
-        const v = cellText((s.rows[i] || [])[c]);
-        if (v) out.push(v.toUpperCase());
+        const fila = s.rows[i] || [];
+        const v = cellText(fila[c]);
+        if (!v) continue;
+        const tipo = v.toUpperCase();
+        tipos.push(tipo);
+        if (cCat >= 0) {
+          const puesta = CATEGORIAS.find((x) => norm(x.nombre) === cellNorm(fila[cCat]))?.id;
+          if (puesta) categorias[tipo] = puesta;
+        }
       }
-      return out;
+      return { tipos, categorias };
     }
   }
-  return out;
+  return { tipos, categorias };
 }
 
 /**
@@ -479,7 +509,10 @@ export async function importFile(file) {
   if (!raw) {
     throw new Error('Ninguna hoja contiene un encabezado «TIPO DE FORMALETA» reconocible.');
   }
-  raw.tipos = catalogTipos(sheets);
+  const catalogo = catalogTipos(sheets);
+  raw.tipos = catalogo.tipos;
+  // Lo escrito en CATÁLOGOS manda: es donde se ven las tipologías sin existencias.
+  raw.tiposCategoria = { ...raw.tiposCategoria, ...catalogo.categorias };
 
   return { data: normalizeData(raw), formato: 'Excel', hojas: sheets.map((s) => s.name), hojaUsada: usada };
 }

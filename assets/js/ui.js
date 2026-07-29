@@ -56,7 +56,11 @@ export function glassSelect({
 
   let panel = null;
   let activo = -1;
-  let visibles = options.slice();
+  /* `criterio` acota la lista desde fuera —p. ej. sólo las tipologías de la
+     categoría puesta—; la búsqueda del panel filtra sobre lo ya acotado. */
+  let criterio = null;
+  const disponibles = () => (criterio ? options.filter(criterio) : options.slice());
+  let visibles = disponibles();
 
   const cerrar = () => {
     if (!panel) return;
@@ -141,7 +145,8 @@ export function glassSelect({
               'aria-label': 'Filtrar opciones',
               oninput: (e) => {
                 const q = norm(e.target.value);
-                pintarOpciones(q ? options.filter((o) => norm(o.label).includes(q)) : options.slice());
+                const base = disponibles();
+                pintarOpciones(q ? base.filter((o) => norm(o.label).includes(q)) : base);
               },
             })
           )
@@ -151,7 +156,7 @@ export function glassSelect({
 
     document.body.append(panel);
     situar();
-    pintarOpciones(options.slice());
+    pintarOpciones(disponibles());
     btn.setAttribute('aria-expanded', 'true');
     abierto = { close: cerrar };
 
@@ -219,6 +224,11 @@ export function glassSelect({
   raiz._set = (v) => {
     raiz.dataset.value = String(v ?? '');
     pintarEtiqueta();
+  };
+  /** Acota las opciones ofrecidas sin rehacer el control. */
+  raiz._filtrar = (fn) => {
+    criterio = typeof fn === 'function' ? fn : null;
+    if (panel) pintarOpciones(disponibles());
   };
   raiz._dispose = cerrar;
 

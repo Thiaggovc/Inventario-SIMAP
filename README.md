@@ -19,7 +19,8 @@ vista de tabla equivalente y respeta la misma barra de filtros.
 
 **Inventario.** El registro maestro completo, con búsqueda, ordenamiento y
 paginación. Permite crear, editar y eliminar referencias, y administrar los
-catálogos de sedes, propietarios, compras y tipologías.
+catálogos de sedes, propietarios, compras y tipologías —incluida la familia
+(formaleta o accesorio) a la que pertenece cada tipología—.
 
 **Datos y publicación.** Exporta todo el inventario a Excel, JSON o CSV; vuelve a
 cargar un archivo para continuar el trabajo; y publica la versión vigente en el
@@ -39,7 +40,7 @@ exactamente.
 | Unidades ubicadas | 9 393 |
 | Unidades asignadas a propietarios | 9 335 |
 | Unidades compradas (histórico) | 15 279 |
-| Tipologías | 50 |
+| Tipologías | 50 (31 formaletas · 19 accesorios) |
 | Sedes y proyectos | PRAVALTA (Furgón Rojo), PRAVALTA, DREAMS FL (Furgón Verde), SAN PEDRO |
 | Propietarios | SIMAP, LEONARDO |
 | Compras fechadas | 12, entre enero de 2021 y junio de 2026 |
@@ -52,7 +53,10 @@ exactamente.
   "ubicaciones":  [ { "id": "pravalta", "nombre": "PRAVALTA" } ],
   "propietarios": [ { "id": "simap", "nombre": "SIMAP" } ],
   "compras":      [ { "id": "c1", "etiqueta": "COMPRA #1", "fecha": "2021-01-29" } ],
+  "categorias":   [ { "id": "formaletas", "nombre": "Formaletas" },
+                    { "id": "accesorios", "nombre": "Accesorios" } ],
   "tipos":        [ "ANGULARES", "ANTEPECHO", "…" ],
+  "tiposCategoria": { "ANGULARES": "accesorios", "ANTEPECHO": "formaletas" },
   "items": [
     {
       "id": "IT-0001",
@@ -70,6 +74,27 @@ exactamente.
 Una **referencia** es una tipología con una medida concreta. Sus cantidades se
 reparten entre sedes y, en paralelo, entre propietarios; ambas sumas deberían
 coincidir.
+
+### Categorías
+
+Las 50 tipologías se reparten en dos familias:
+
+| Categoría | Tipologías | Qué agrupa |
+| --- | --- | --- |
+| **Formaletas** | 31 | La formaletería propiamente dicha: formaletas de losa y de muro, esquineros, paneles, dinteles, cenefas, tapamuros, realces, antepechos. |
+| **Accesorios** | 19 | Lo que la sujeta, alinea o sirve para montarla y desmontarla: angulares, caballete, cargaderas, corbata, cuña, gatas U, palometas, panochas, pasador, pata estabilizadora, pingrapa, sacacorbatas, sacaláminas, tapas guarderas, tornillo y poste de soporte ajustable, tubo cuadrado, viga alineadora, virola. |
+
+La asignación vigente vive en `tiposCategoria` dentro del propio JSON, no en el
+código: se cambia desde *Inventario → Catálogos*, pulsando la pastilla de color
+de cada tipología. `assets/js/categorias.js` sólo aporta el reparto **por
+omisión**, que se aplica a una tipología nueva o a un archivo importado que
+llegue sin clasificar.
+
+La familia acompaña a la tipología en toda la aplicación: filtro propio en la
+barra —que además acota la lista de tipologías a la familia elegida—, tarjeta
+«Formaletas y accesorios» en el tablero, pastilla en cada fila del inventario y
+columna `CATEGORÍA` en las hojas `INVENTARIO` y `CATÁLOGOS` del Excel, de modo
+que una reasignación hecha a mano sobrevive al viaje de ida y vuelta.
 
 ### Descuadres
 
@@ -157,6 +182,7 @@ assets/js/
   app.js                       arranque, cabecera y enrutado
   state.js                     modelo, normalización, borrador y derivados
   filters.js                   barra de filtros compartida
+  categorias.js                familias del catálogo y reparto por omisión
   charts.js                    gráficos SVG propios
   xlsx.js                      lectura y escritura de .xlsx y CSV
   workbook.js                  mapeo entre el modelo y los archivos
@@ -208,9 +234,11 @@ titulares destacan por tamaño y peso, no por cambiar de letra.
   (flechas, Inicio/Fin, Enter, Escape).
 - **Pantalla de arranque.** Una ventana de cristal con «GRUPO SIMAP» en el azul
   corporativo `#0073C4` —las letras entran girando una a una— y una barra de
-  avance fina bajo el nombre. La ventana y el fondo son del mismo tema: en claro
-  todo es blanco, en oscuro todo es negro. Un panel blanco recortado sobre un
-  fondo casi negro parecía un parche pegado encima. Permanece **tres segundos como
+  avance fina bajo el nombre, en degradado entre los dos azules de la casa
+  (`#25506F` → `#0073C4`). La ventana y el fondo son del mismo tema: en claro
+  todo es blanco, en oscuro todo es negro. Detrás del panel derivan tres focos
+  de luz muy difusos: sin algo que desenfocar, el `backdrop-filter` no se ve y
+  el «cristal» se queda en un rectángulo liso. Permanece **tres segundos como
   mínimo**: una carga instantánea produciría un destello y nadie llegaría a leer
   nada. La barra no es decorativa —se queda en el menor entre el reloj y el
   avance real de los datos, así que nunca adelanta lo que no ha ocurrido.
@@ -240,8 +268,8 @@ las ranuras no es decorativo: es el mecanismo de seguridad para daltonismo.
 
 | Ranura | Claro | Oscuro | Extremo claro (claro / oscuro) | Asignada a |
 | --- | --- | --- | --- | --- |
-| 1 | `#00C4AD` | `#0FCDB4` | `#3FE0CD` / `#4EE3CE` | PRAVALTA (Furgón Rojo) · SIMAP |
-| 2 | `#C47500` | `#DE8410` | `#E39A33` / `#F0A94A` | PRAVALTA · LEONARDO |
+| 1 | `#00C4AD` | `#0FCDB4` | `#3FE0CD` / `#4EE3CE` | PRAVALTA (Furgón Rojo) · SIMAP · Formaletas |
+| 2 | `#C47500` | `#DE8410` | `#E39A33` / `#F0A94A` | PRAVALTA · LEONARDO · Accesorios |
 | 3 | `#25506F` | `#5A90C2` | `#4A7CA3` / `#8FB9DC` | DREAMS FL (Furgón Verde) |
 | 4 | `#C49C00` | `#D2AC1E` | `#E3BE33` / `#E7C955` | SAN PEDRO |
 | 5 | `#7A3F6D` | `#B87BA9` | `#A7699A` / `#CFA0C3` | reserva para una quinta sede |
@@ -281,7 +309,9 @@ de salida:
    que se desplaza.
 6. **Leyenda viva.** Señalar una píldora de la leyenda aísla esa sede dentro del
    gráfico y retira el resto, sin tocar los filtros.
-7. **Elegir qué mirar.** Cada píldora de la leyenda es un interruptor: apagar
+7. **Elegir qué mirar.** Elegir una familia en el filtro de categoría acota
+   también la lista de tipologías, que pasa de 50 nombres a los 31 o 19 que
+   vienen al caso. Cada píldora de la leyenda es un interruptor: apagar
    una sede la retira del reparto y del cruce por tipología a la vez. Los
    gráficos de tipologías y medidas llevan un selector de cuántas filas listar
    (10, 15, 25, 40 o todas) y otro de criterio de orden (volumen o alfabético).

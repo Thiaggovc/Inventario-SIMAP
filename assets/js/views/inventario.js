@@ -1,7 +1,8 @@
 /* Inventario detallado: consulta, alta, edición y baja de referencias. */
 
 import { h, clear, fmt, fmtFecha, toInt, openModal, confirmDialog, toast, sumValues, slug, observeReveal, prefersReduced, displayTitle } from '../util.js';
-import { store, commit, filterItems, itemTotal, itemPropTotal, itemDescuadre, newItem } from '../state.js';
+import { store, commit, filterItems, itemTotal, itemPropTotal, itemDescuadre, newItem, categoriaDe, setCategoriaTipo } from '../state.js';
+import { nombreCategoria, clasificarTipo } from '../categorias.js';
 import { filters, filterBar, onFilters } from '../filters.js';
 
 const PAGE = 40;
@@ -198,7 +199,18 @@ function row(data, it, repaint) {
     'tr',
     {},
     h('td', { class: 'n muted' }, it.n),
-    h('td', { class: 'wrap' }, h('b', {}, it.tipo), propNames.length ? h('div', { class: 'small muted' }, propNames.join(' · ')) : null),
+    h(
+      'td',
+      { class: 'wrap' },
+      h('b', {}, it.tipo),
+      h(
+        'div',
+        { class: 'small muted rowmeta' },
+        // La familia va aquí y no en una columna propia: la tabla ya va justa.
+        h('span', { class: `cat-tag cat-tag--${categoriaDe(data, it.tipo)}` }, nombreCategoria(categoriaDe(data, it.tipo))),
+        propNames.length ? h('span', {}, propNames.join(' · ')) : null
+      )
+    ),
     h('td', { class: 'wrap' }, it.medida, it.nota ? h('div', { class: 'small muted' }, it.nota) : null),
     data.ubicaciones.map((u) =>
       h('td', { class: 'n' }, it.ubicaciones[u.id] ? fmt(it.ubicaciones[u.id]) : h('span', { class: 'muted' }, '—'))
@@ -581,16 +593,39 @@ function openCatalogos(data, repaint) {
 }
 
 function tiposEditor(repaint) {
-  const list = h('div', { class: 'row', style: { gap: '6px' } });
+  const list = h('div', { class: 'tipolist' });
+
   const draw = () => {
     clear(list);
     for (const t of store.data.tipos) {
       const usos = store.data.items.filter((it) => it.tipo === t).length;
+      const cat = categoriaDe(store.data, t);
+      const otra = cat === 'formaletas' ? 'accesorios' : 'formaletas';
+
+      /* Con sólo dos familias, el control natural es un interruptor: la pastilla
+         dice a cuál pertenece y al pulsarla se pasa a la otra. */
+      const marca = h(
+        'button',
+        {
+          class: `cat-tag cat-tag--${cat} cat-tag--btn`,
+          type: 'button',
+          title: `${nombreCategoria(cat)} · pulse para pasarla a ${nombreCategoria(otra).toLowerCase()}`,
+          onclick: () => {
+            commit((d) => setCategoriaTipo(d, t, otra));
+            draw();
+            repaint();
+          },
+        },
+        nombreCategoria(cat)
+      );
+
       list.append(
         h(
-          'span',
-          { class: `chip ${usos ? 'chip--brand' : ''}`, title: `${usos} referencias` },
-          t,
+          'div',
+          { class: 'tipolist__row' },
+          marca,
+          h('span', { class: 'tipolist__name' }, t),
+          h('span', { class: 'tipolist__uso small muted' }, usos ? `${fmt(usos)} ref.` : 'sin uso'),
           usos
             ? null
             : h(
@@ -598,11 +633,11 @@ function tiposEditor(repaint) {
                 {
                   class: 'btn btn--ghost btn--sm',
                   type: 'button',
-                  style: { padding: '0 4px', marginLeft: '4px' },
                   'aria-label': `Eliminar ${t}`,
                   onclick: () => {
                     commit((d) => {
                       d.tipos = d.tipos.filter((x) => x !== t);
+                      delete d.tiposCategoria[t];
                     });
                     draw();
                     repaint();
@@ -620,7 +655,7 @@ function tiposEditor(repaint) {
   return h(
     'fieldset',
     { class: 'fieldset-rule' },
-    h('legend', {}, 'Tipologías'),
+    h('legend', {}, 'Tipologías y categorías'),
     list,
     h(
       'div',
@@ -639,6 +674,7 @@ function tiposEditor(repaint) {
                 d.tipos.push(v);
                 d.tipos.sort((a, b) => a.localeCompare(b, 'es'));
               }
+              if (!d.tiposCategoria[v]) d.tiposCategoria[v] = clasificarTipo(v);
             });
             input.value = '';
             draw();
@@ -648,7 +684,12 @@ function tiposEditor(repaint) {
         'Añadir'
       )
     ),
-    h('p', { class: 'small muted', style: { marginTop: '10px' } }, 'Sólo pueden eliminarse las tipologías sin referencias asociadas.')
+    h(
+      'p',
+      { class: 'small muted', style: { marginTop: '10px' } },
+      'Pulse la pastilla de color para mover una tipología entre formaletas y accesorios. ',
+      'Sólo pueden eliminarse las tipologías sin referencias asociadas.'
+    )
   );
 }
 
