@@ -1,3 +1,10 @@
 .DS_Store
 Thumbs.db
 node_modules/
+
+# Andamiaje de herramientas del entorno de desarrollo, no del producto.
+# Importa mantenerlo fuera: el workflow de Pages publica «path: .», así que
+# cualquier cosa versionada en la raíz acaba servida en el sitio público.
+.agents/
+.claude/
+skills-lock.json
