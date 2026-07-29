@@ -206,9 +206,12 @@ titulares destacan por tamaño y peso, no por cambiar de letra.
   aplicación son propios: panel de cristal anclado al botón, filtro de texto
   cuando la lista es larga, punto de color por serie y teclado completo
   (flechas, Inicio/Fin, Enter, Escape).
-- **Pantalla de arranque.** Un panel de cristal denso con «GRUPO SIMAP» en
-  degradado y una barra de avance, con permanencia mínima para que una carga
-  instantánea no produzca un destello.
+- **Pantalla de arranque.** Una ventana de cristal en tonos blancos con «GRUPO
+  SIMAP» en el azul corporativo `#0073C4` —las letras entran girando una a una—
+  y una barra de avance fina bajo el nombre. Permanece **tres segundos como
+  mínimo**: una carga instantánea produciría un destello y nadie llegaría a leer
+  nada. La barra no es decorativa —se queda en el menor entre el reloj y el
+  avance real de los datos, así que nunca adelanta lo que no ha ocurrido.
 - **Cristal.** Cabecera, filtros, tarjetas, tablas, globos y diálogos son
   paneles translúcidos con desenfoque de fondo, filo especular y sombra suave.
   Detrás respira un campo de luz azul en movimiento muy lento, con un grano
@@ -223,6 +226,12 @@ titulares destacan por tamaño y peso, no por cambiar de letra.
 - **Gráficos con degradado.** Cada serie se pinta con un degradado propio de su
   matiz más un velo especular. El matiz sigue identificando a la entidad: el
   degradado aporta volumen, nunca codifica magnitud.
+- **Un color por tarjeta.** Cuando un gráfico tiene una sola serie no hay
+  entidad que codificar, así que cada tarjeta toma su propia ranura de la
+  paleta: tipologías en ámbar, medidas en naranja, compras por fecha en azul
+  marino y el acumulado en vino. Cuatro gráficos seguidos del mismo verde no se
+  distinguían de un vistazo. Un punto del mismo color junto al título anuncia la
+  ranura antes de mirar el trazado.
 
 Los colores de las series son los corporativos de Grupo SIMAP. El **orden** de
 las ranuras no es decorativo: es el mecanismo de seguridad para daltonismo.
@@ -274,15 +283,33 @@ de salida:
    una sede la retira del reparto y del cruce por tipología a la vez. Los
    gráficos de tipologías y medidas llevan un selector de cuántas filas listar
    (10, 15, 25, 40 o todas) y otro de criterio de orden (volumen o alfabético).
-   El reparto por sede se ve como barra o como **anillo**, y el cruce
-   tipología × sede como **apilado o agrupado** —agrupado comparte eje, así que
-   comparar sedes deja de exigir medir segmentos desplazados—. Pulsar una barra
-   filtra el tablero entero por esa tipología o propietario; volver a pulsarla
-   lo deshace. La barra de filtros suma «sólo con existencias» y muestra cuántos
-   filtros hay puestos.
-8. **Detalle en todas partes.** Barra de avance de lectura en la cabecera;
-   tarjetas con barrido de luz al aparecer y al pasar el cursor; filas de tabla
-   con acento que entra por la izquierda; flechas de ordenación con rebote;
+   Pulsar una barra filtra el tablero entero por esa tipología o propietario;
+   volver a pulsarla lo deshace. La barra de filtros suma «sólo con
+   existencias» y muestra cuántos filtros hay puestos.
+8. **Elegir cómo mirarlo.** Ningún gráfico está fijado a una sola forma; cada
+   tarjeta lleva un segmentado —con la marca de cristal deslizándose hasta la
+   opción elegida— para cambiar de modelo sin salir de la página:
+
+   | Tarjeta | Formas disponibles |
+   | --- | --- |
+   | Dónde está el inventario | barra de participación · **anillo** |
+   | Existencias por tipología | barras · **piruleta** · **mapa de áreas** |
+   | Tipología por sede | apilado · agrupado |
+   | Compras acumuladas | **área** · **línea** |
+   | Medidas con mayor existencia | barras · **piruleta** |
+
+   No es variedad por variedad: el agrupado comparte eje, así que comparar sedes
+   deja de exigir medir segmentos desplazados; la piruleta pesa mucha menos
+   tinta cuando hay muchas categorías de valores parecidos y compara posiciones
+   de puntos en vez de longitudes; y el mapa de áreas enseña el peso relativo de
+   cuarenta y siete tipologías muy desiguales de golpe, donde una barra por cada
+   una desperdiciaría el ancho. En el mapa, las franjas de la cola tienen altura
+   mínima garantizada: un bloque exacto pero invisible no informa.
+9. **Detalle en todas partes.** Botones con tirón magnético hacia el cursor;
+   barra de avance de lectura en la cabecera; tarjetas con barrido de luz al
+   aparecer y al pasar el cursor; el punto de color del título gira al posarse
+   encima; filas de tabla con acento que entra por la izquierda; flechas de
+   ordenación con rebote;
    casilla de verificación que dibuja su marca; avisos con cuenta atrás visible;
    campos del formulario escalonados; el recuento de cuadre late al cambiar de
    estado; el icono de tema gira; y la cifra de cada tarjeta da un golpe seco al
@@ -290,13 +317,6 @@ de salida:
 
 Todo el movimiento se desactiva con `prefers-reduced-motion: reduce`, incluido
 el campo de fondo, y al imprimir.
-
---- | --- | --- |
-| 1 | `#0073C4` | `#3D97E8` |
-| 2 | `#EB6834` | `#D95926` |
-| 3 | `#1BAF7A` | `#199E70` |
-| 4 | `#4A3AA7` | `#9085E9` |
-| 5 | `#EDA100` | `#C98500` |
 
 ---
 

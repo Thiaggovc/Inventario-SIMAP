@@ -81,7 +81,9 @@
     Arial, sans-serif;
 
   /* Movimiento */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* suave */
+  --ease-snap: cubic-bezier(0.87, 0, 0.13, 1);    /* seco */
+  --ease-drama: cubic-bezier(0.76, 0, 0.24, 1);   /* dramático */
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-1: 180ms;
@@ -625,9 +627,13 @@ a { color: var(--brand-deep); text-decoration-thickness: 1px; text-underline-off
   pointer-events: none;
 }
 
-.btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: inset 0 1px 0 var(--glass-spec), var(--shadow-2); }
+/* El botón se acerca ligeramente al cursor —imán— sin dejar su sitio. */
+.btn:hover:not(:disabled) {
+  transform: translate(var(--pull-x, 0px), calc(var(--pull-y, 0px) - 2px));
+  box-shadow: inset 0 1px 0 var(--glass-spec), var(--shadow-2);
+}
 .btn:hover:not(:disabled)::after { opacity: 1; }
-.btn:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+.btn:active:not(:disabled) { transform: translate(var(--pull-x, 0px), var(--pull-y, 0px)) scale(0.985); }
 .btn:disabled { opacity: 0.42; cursor: not-allowed; }
 
 .btn--primary {
@@ -938,7 +944,35 @@ a { color: var(--brand-deep); text-decoration-thickness: 1px; text-underline-off
   letter-spacing: -0.012em;
 }
 
+/* Cuando la tarjeta declara su color de serie, un punto discreto junto al
+   título lo anuncia: así la leyenda del gráfico se entiende antes de leerla. */
+.card[style*="--acento"] .card__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.card[style*="--acento"] .card__title::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 2px;
+  background: linear-gradient(150deg, var(--acento-lift, var(--acento)), var(--acento));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 16%, transparent);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.card:hover .card__title::before { transform: scale(1.25) rotate(45deg); }
+
 .card__sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+
+/* En pantalla estrecha los mandos bajan bajo el título: compartir la línea
+   dejaba el título en una columna de tres palabras y el segmentado cortado. */
+@media (max-width: 860px) {
+  .card__head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .card__head .chart-tools { justify-content: flex-start; }
+  .gs--compact { flex: 1 1 auto; }
+  .gs--compact .gs__btn { width: 100%; }
+}
 
 .card__body { padding: 18px 22px 22px; flex: 1 1 auto; min-width: 0; }
 .card__body--flush { padding: 0; }
@@ -967,6 +1001,11 @@ a { color: var(--brand-deep); text-decoration-thickness: 1px; text-underline-off
 .chart__inlabel { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .chart__centro-val { fill: var(--ink); font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
 .chart__centro-lbl { fill: var(--ink-3); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+.chart__tm-lbl { font-size: 12px; font-weight: 700; letter-spacing: 0.01em; pointer-events: none; }
+.chart__tm-val { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; }
+.chart__stem { stroke-width: 2; stroke-linecap: round; opacity: 0.5; transition: opacity var(--dur-2) var(--ease-soft); }
+.chart__row.is-active .chart__stem { opacity: 1; }
+.chart.is-hovering .chart__row:not(.is-active) .chart__stem { opacity: 0.16; }
 
 /* La zona sensible es un rectángulo invisible: si recibe el foco del ratón, el
    navegador le dibuja su propio recuadro negro encima del gráfico. El realce
@@ -1422,6 +1461,10 @@ table.data tfoot td {
 /* ============================================ desplegable de cristal ==== */
 
 .gs { position: relative; display: block; width: 100%; }
+/* En la cabecera de una tarjeta el desplegable convive con otros mandos:
+   allí ocupa lo suyo y no el ancho entero. */
+.gs--compact { display: inline-block; width: auto; }
+.gs--compact .gs__btn { width: auto; min-width: 108px; }
 
 .gs__btn {
   appearance: none;
@@ -1555,6 +1598,7 @@ table.data tfoot td {
 /* ------------------------------------------------- grupo excluyente ---- */
 
 .seg {
+  position: relative;
   display: inline-flex;
   padding: 3px;
   gap: 2px;
@@ -1564,7 +1608,24 @@ table.data tfoot td {
   box-shadow: inset 0 1px 0 var(--glass-spec);
 }
 
+/* La marca de la opción activa se desliza; no salta de un botón a otro. */
+.seg__ink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 100px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(150deg, var(--hero-a), var(--hero-b));
+  box-shadow: 0 4px 14px rgba(0, 115, 196, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: transform 420ms var(--ease-spring), width 420ms var(--ease-spring),
+    opacity var(--dur-2) var(--ease-soft);
+}
+.seg.is-ready .seg__ink { opacity: 1; }
+
 .seg__btn {
+  position: relative;
+  z-index: 1;
   appearance: none;
   border: 0;
   background: none;
@@ -1581,11 +1642,13 @@ table.data tfoot td {
     transform var(--dur-1) var(--ease-spring);
 }
 .seg__btn:hover { color: var(--ink); transform: translateY(-1px); }
-.seg__btn[aria-checked="true"] {
-  color: #fff;
+.seg__btn[aria-checked="true"] { color: #fff; }
+/* Si el deslizador no ha podido medirse aún, el botón se pinta él mismo. */
+.seg:not(.is-ready) .seg__btn[aria-checked="true"] {
   background: linear-gradient(150deg, var(--hero-a), var(--hero-b));
   box-shadow: 0 4px 14px rgba(0, 115, 196, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
+.seg__btn[aria-checked="true"]:hover { transform: none; }
 .seg__icon { font-size: 12px; line-height: 1; }
 
 /* ============================================== pantalla de arranque ==== */
@@ -1596,85 +1659,115 @@ table.data tfoot td {
   z-index: 200;
   display: grid;
   place-items: center;
-  background: linear-gradient(160deg, var(--boot-a), var(--boot-b));
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  transition: opacity 520ms var(--ease-soft), transform 520ms var(--ease-out);
+  background: radial-gradient(120% 90% at 50% 40%, var(--boot-a), var(--boot-b));
+  transition: opacity 620ms var(--ease-out), transform 620ms var(--ease-out);
 }
 
-:root { --boot-a: rgba(255, 255, 255, 0.94); --boot-b: rgba(233, 241, 249, 0.97); }
+:root { --boot-a: #eef3f9; --boot-b: #dae3ee; }
 :root[data-theme="dark"],
-:root:where(:not([data-theme="light"])) { --boot-a: rgba(14, 17, 22, 0.95); --boot-b: rgba(9, 12, 16, 0.98); }
+:root:where(:not([data-theme="light"])) { --boot-a: #141922; --boot-b: #080b10; }
 
-.boot.is-going { opacity: 0; transform: scale(1.03); pointer-events: none; }
+.boot.is-going { opacity: 0; transform: scale(1.04); pointer-events: none; }
 
+/* Ventana en tonos blancos: el mismo cristal del resto, aquí más presente
+   para que el azul de marca tenga sobre qué apoyarse en ambos temas. */
 .boot__panel {
   position: relative;
-  padding: 46px 62px 40px;
+  width: min(420px, calc(100vw - 48px));
+  padding: 44px 44px 34px;
   border-radius: 26px;
-  background: linear-gradient(155deg, var(--glass-solid), var(--glass-strong));
-  border: 1px solid var(--glass-edge);
-  box-shadow: var(--shadow-lift), inset 0 1px 0 var(--glass-spec);
+  background: linear-gradient(158deg, rgba(255, 255, 255, 0.97), rgba(240, 245, 251, 0.9));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 6px rgba(9, 30, 50, 0.08), 0 34px 80px rgba(9, 30, 50, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
   text-align: center;
   overflow: hidden;
-  animation: boot-panel 700ms var(--ease-spring) both;
+  animation: boot-panel 760ms var(--ease-out) both;
 }
 
 @keyframes boot-panel {
-  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  from { opacity: 0; transform: translateY(20px) scale(0.94); }
   to { opacity: 1; transform: none; }
 }
 
+/* Lámina de luz que recorre el cristal mientras se espera. */
 .boot__panel::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(72deg, transparent 42%, var(--glass-spec) 50%, transparent 58%);
+  background: linear-gradient(74deg, transparent 40%, rgba(255, 255, 255, 0.85) 50%, transparent 60%);
   transform: translateX(-120%);
-  animation: card-sheen 2.4s var(--ease-soft) 400ms infinite;
+  animation: boot-sheen 2.1s var(--ease-soft) 500ms infinite;
+  pointer-events: none;
+}
+
+@keyframes boot-sheen {
+  0% { transform: translateX(-120%); }
+  60%, 100% { transform: translateX(120%); }
 }
 
 .boot__name {
+  display: flex;
+  justify-content: center;
+  /* El nombre nunca se parte: son letras sueltas y la línea rompería por
+     cualquier sitio —«GRUPO SIMA / P»—. */
+  flex-wrap: nowrap;
+  white-space: nowrap;
   font-family: var(--sans);
-  font-size: clamp(30px, 6vw, 52px);
+  font-size: clamp(22px, 4.6vw, 34px);
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  line-height: 1;
-  background: linear-gradient(104deg, var(--series-3), var(--brand) 34%, var(--series-1) 62%, var(--brand-deep));
-  background-size: 260% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: title-sheen 4.5s linear infinite;
+  line-height: 1.05;
+  color: #0073c4;
+  perspective: 620px;
 }
 
-@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
-  .boot__name { color: var(--brand-deep); background: none; }
+/* Cada letra entra girando sobre su propio eje, escalonada. */
+.boot__ch {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  animation: boot-ch 720ms var(--ease-out) both;
+  animation-delay: calc(var(--c, 0) * 42ms);
 }
 
-.boot__bar {
+.boot__ch--sp { width: 0.42em; }
+
+@keyframes boot-ch {
+  from { opacity: 0; transform: translateY(26px) rotateX(-78deg); }
+  to { opacity: 1; transform: none; }
+}
+
+.boot__track {
   position: relative;
-  height: 3px;
-  margin-top: 26px;
-  border-radius: 3px;
-  background: var(--rule);
+  height: 4px;
+  margin: 30px auto 0;
+  width: 76%;
+  border-radius: 4px;
+  background: rgba(0, 115, 196, 0.14);
   overflow: hidden;
 }
 
-.boot__bar::after {
-  content: "";
+.boot__fill {
   position: absolute;
   inset: 0;
-  width: 42%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--series-1), var(--brand) 50%, var(--series-4));
-  animation: boot-slide 1.25s var(--ease-soft) infinite;
+  width: 0%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #0073c4, #2a95dd 60%, #00c4ad);
+  box-shadow: 0 0 14px rgba(0, 115, 196, 0.45);
+  transition: width 120ms linear;
 }
 
-@keyframes boot-slide {
-  0% { transform: translateX(-110%); }
-  100% { transform: translateX(340%); }
+.boot__pct {
+  margin-top: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(0, 115, 196, 0.72);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ================================================= titular en escena ==== */
@@ -1789,6 +1882,7 @@ table.data tfoot td {
 .chart--pickable .chart__hit { cursor: pointer; }
 
 .chart__row.is-picked .chart__mark { filter: url(#simap-glow); }
+.chart__row.is-picked .chart__stem { opacity: 1; }
 
 .pick-hint {
   font-size: 11.5px;
@@ -1802,7 +1896,7 @@ table.data tfoot td {
   width: 12px;
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(150deg, var(--series-1-lift), var(--series-1));
+  background: linear-gradient(150deg, var(--acento-lift, var(--series-1-lift)), var(--acento, var(--series-1)));
   animation: pulse-soft 2.6s var(--ease-soft) infinite;
 }
 

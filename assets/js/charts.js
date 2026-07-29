@@ -622,6 +622,231 @@ export function shareBar(host, { parts, unidad = 'unidades', animate = true }) {
   host.append(root);
 }
 
+/* -------------------------------------------------------- mapa de áreas -- */
+
+/**
+ * Treemap: el área de cada bloque es su cantidad. Con 47 tipologías muy
+ * desiguales, una barra por cada una desperdicia el ancho; aquí el peso
+ * relativo se ve de golpe y las pequeñas siguen existiendo.
+ * Reparto por franjas —squarified simplificado—, que da bloques legibles.
+ */
+export function treemap(host, { rows, unidad = 'unidades', slot = 0, animate = true, onPick = null, picked = null }) {
+  ensureDefs();
+  clear(host);
+  const datos = rows.filter((r) => r.value > 0);
+  if (!datos.length) return emptyState(host);
+
+  const width = Math.max(host.clientWidth || 640, 420);
+  const height = 380;
+  const total = datos.reduce((a, r) => a + r.value, 0);
+
+  const root = svg('svg', {
+    class: `chart ${onPick ? 'chart--pickable' : ''}`,
+    viewBox: `0 0 ${width} ${height}`,
+    width,
+    height,
+    'aria-label': `Mapa de áreas: ${datos.length} categorías sobre ${fmt(total)} ${unidad}`,
+  });
+
+  // El rótulo va encima del bloque: su tinta la decide la luminancia del relleno.
+  const tinta = inkOn(seriesColor(slot));
+
+  // Reparto en franjas horizontales de altura proporcional a su suma.
+  const porFranja = Math.ceil(Math.sqrt(datos.length));
+  const franjas = [];
+  for (let i = 0; i < datos.length; i += porFranja) franjas.push(datos.slice(i, i + porFranja));
+
+  /* Las franjas de la cola suman poco y quedarían en tiras de tres píxeles.
+     Se les garantiza un mínimo legible y el excedente lo ceden las de arriba,
+     en proporción a lo que les sobra. El área deja de ser exacta al pie de la
+     letra, pero un bloque que no se ve tampoco informa. */
+  const MIN_FRANJA = 38;
+  let altos = franjas.map((f) => (f.reduce((a, r) => a + r.value, 0) / total) * height);
+  let falta = 0;
+  altos = altos.map((a) => {
+    if (a >= MIN_FRANJA) return a;
+    falta += MIN_FRANJA - a;
+    return MIN_FRANJA;
+  });
+  const sobra = altos.reduce((s, a) => s + Math.max(0, a - MIN_FRANJA), 0);
+  if (falta > 0 && sobra > falta) {
+    altos = altos.map((a) => (a > MIN_FRANJA ? a - ((a - MIN_FRANJA) / sobra) * falta : a));
+  }
+
+  let y = 0;
+  let idx = 0;
+  franjas.forEach((franja, fi) => {
+    const sumaF = franja.reduce((a, r) => a + r.value, 0);
+    const alto = altos[fi];
+    let x = 0;
+    franja.forEach((r) => {
+      const ancho = (r.value / sumaF) * width;
+      const gx = x + 1.2;
+      const gy = y + 1.2;
+      const gw = Math.max(1, ancho - 2.4);
+      const gh = Math.max(1, alto - 2.4);
+
+      /* Todos los bloques comparten tono; el rango se lee en el área, y una
+         opacidad decreciente separa unos de otros sin inventar otra escala. */
+      const peso = 1 - Math.min(idx, 17) * 0.026;
+
+      const marca = svg('rect', { class: 'chart__mark', x: gx, y: gy, width: gw, height: gh, rx: 7, fill: seriesFill(slot), 'fill-opacity': peso.toFixed(3) });
+      const brillo = svg('rect', { class: 'chart__gloss', x: gx, y: gy, width: gw, height: gh, rx: 7, fill: 'url(#simap-gloss)', 'pointer-events': 'none' });
+      const hit = svg('rect', { class: 'chart__hit', x: gx, y: gy, width: gw, height: gh, rx: 7 });
+      const bloque = svg('g', { class: 'chart__row' }, marca, brillo);
+
+      // Sólo se rotula donde el bloque da holgura para el texto completo.
+      const etiqueta = String(r.key);
+      if (gw > 78 && gh > 44) {
+        bloque.append(
+          svg('text', { class: 'chart__tm-lbl', x: gx + 10, y: gy + 21, fill: tinta, 'data-max': Math.round(gw - 20) }, etiqueta),
+          svg('text', { class: 'chart__tm-val', x: gx + 10, y: gy + 41, fill: tinta, 'fill-opacity': 0.82 }, fmt(r.value))
+        );
+      }
+
+      bloque.append(hit);
+      if (picked !== null && String(picked) === etiqueta) bloque.classList.add('is-picked');
+
+      if (animate && !prefersReduced() && marca.animate) {
+        for (const el of [marca, brillo]) {
+          el.style.transformBox = 'fill-box';
+          el.style.transformOrigin = 'center';
+          retire(
+            el.animate([{ opacity: 0, transform: 'scale(0.82)' }, { opacity: 1, transform: 'scale(1)' }],
+              { duration: 520, delay: Math.min(idx, 24) * 26, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' }),
+            el
+          );
+        }
+      }
+
+      bindRow(root, hit, bloque, () => ({
+        title: etiqueta,
+        rows: [
+          { label: unidad, value: fmt(r.value), color: seriesColor(slot) },
+          { label: 'Participación', value: `${((r.value / total) * 100).toFixed(1)} %` },
+          ...(onPick && !r.isOther ? [{ label: 'Pulse para filtrar', value: '↵' }] : []),
+        ],
+      }));
+
+      if (onPick && !r.isOther) {
+        hit.addEventListener('click', () => onPick(r));
+        hit.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPick(r);
+          }
+        });
+      }
+
+      root.append(bloque);
+      x += ancho;
+      idx += 1;
+    });
+    y += alto;
+  });
+
+  host.append(root);
+
+  /* Recorte exacto: ya en el documento, el texto se puede medir de verdad, y
+     ninguna estimación acierta con la negrita en mayúsculas. */
+  for (const t of root.querySelectorAll('.chart__tm-lbl')) {
+    const max = Number(t.getAttribute('data-max')) || 0;
+    if (!max || !t.getComputedTextLength) continue;
+    let texto = t.textContent;
+    while (texto.length > 4 && t.getComputedTextLength() > max) {
+      texto = texto.slice(0, -1);
+      t.textContent = texto.trimEnd() + '…';
+    }
+  }
+}
+
+/* ---------------------------------------------------------- piruleta ---- */
+
+/**
+ * Lollipop: tallo fino y punto al final. Con muchas categorías de valores
+ * parecidos pesa mucho menos tinta que la barra maciza y el ojo compara
+ * posiciones de puntos, que es más preciso que comparar longitudes.
+ */
+export function lollipop(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null }) {
+  ensureDefs();
+  clear(host);
+  if (!rows.length) return emptyState(host);
+
+  const { wrapped, lineCount, labelW } = layoutLabels(rows, { maxChars: maxLabel });
+  const rowH = Math.max(28, lineCount * LINE_H + 12);
+  const padT = 10;
+  const padB = 26;
+  const valueW = 64;
+  const width = Math.max(host.clientWidth || 640, 420);
+  const plotW = Math.max(90, width - labelW - valueW);
+  const height = padT + rows.length * rowH + padB;
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  const ticks = niceTicks(max);
+  const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
+  const color = seriesColor(slot);
+
+  const root = svg('svg', {
+    class: `chart ${onPick ? 'chart--pickable' : ''}`,
+    viewBox: `0 0 ${width} ${height}`,
+    width,
+    height,
+    'aria-label': `Piruletas: ${rows.length} categorías, máximo ${fmt(max)} ${unidad}`,
+  });
+
+  for (const t of ticks) {
+    const x = labelW + scale(t);
+    root.append(svg('line', { class: 'chart__grid', x1: x, y1: padT, x2: x, y2: padT + rows.length * rowH }));
+    root.append(svg('text', { class: 'chart__tick', x, y: height - 9, 'text-anchor': 'middle' }, fmtCompact(t)));
+  }
+  root.append(svg('line', { class: 'chart__axis', x1: labelW, y1: padT, x2: labelW, y2: padT + rows.length * rowH }));
+
+  rows.forEach((r, i) => {
+    const cy = padT + i * rowH + rowH / 2;
+    const x2 = labelW + Math.max(2, scale(r.value));
+    const tallo = svg('line', { class: 'chart__stem', x1: labelW, y1: cy, x2, y2: cy, stroke: color });
+    const punto = svg('circle', { class: 'chart__mark', cx: x2, cy, r: 5.5, fill: seriesFill(slot) });
+    const val = svg('text', { class: 'chart__val', x: x2 + 12, y: cy + 4 }, fmt(r.value));
+    const hit = svg('rect', { class: 'chart__hit', x: 0, y: padT + i * rowH, width: labelW + plotW + valueW, height: rowH });
+
+    const fila = svg('g', { class: 'chart__row' },
+      catLabel(wrapped[i], labelW - 11, cy, String(r.key)), tallo, punto, val, hit);
+
+    if (animate && !prefersReduced() && tallo.animate) {
+      tallo.style.transformBox = 'fill-box';
+      tallo.style.transformOrigin = '0% 50%';
+      retire(tallo.animate([{ transform: 'scaleX(0.001)' }, { transform: 'scaleX(1)' }],
+        { duration: 620, delay: i * 40, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' }), tallo);
+      retire(punto.animate([{ opacity: 0, transform: 'scale(0.2)' }, { opacity: 1, transform: 'scale(1)' }],
+        { duration: 460, delay: i * 40 + 260, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'both' }), punto);
+      fadeUp(val, { delay: i * 40 + 340, animate });
+    }
+
+    if (picked !== null && String(picked) === String(r.key)) fila.classList.add('is-picked');
+
+    bindRow(root, hit, fila, () => ({
+      title: String(r.key),
+      rows: [
+        { label: unidad, value: fmt(r.value), color },
+        ...(onPick && !r.isOther ? [{ label: 'Pulse para filtrar', value: '↵' }] : []),
+      ],
+    }));
+
+    if (onPick && !r.isOther) {
+      hit.addEventListener('click', () => onPick(r));
+      hit.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPick(r);
+        }
+      });
+    }
+
+    root.append(fila);
+  });
+
+  host.append(root);
+}
+
 /* ----------------------------------------------------------- anillo ----- */
 
 /**
@@ -811,7 +1036,7 @@ export function columns(host, { rows, unidad = 'unidades', slot = 0, animate = t
 
 /* -------------------------------------------------------------- área ---- */
 
-export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate = true }) {
+export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate = true, relleno = true }) {
   ensureDefs();
   clear(host);
   if (points.length < 2) return emptyState(host);
@@ -851,7 +1076,7 @@ export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate 
   const fillPath = svg('path', {
     d: `${line}L${xOf(points.length - 1)},${padT + plotH}L${xOf(0)},${padT + plotH}Z`,
     fill: seriesFill(slot),
-    'fill-opacity': 0.16,
+    'fill-opacity': relleno ? 0.16 : 0,
   });
   const linePath = svg('path', {
     d: line,
@@ -986,7 +1211,7 @@ function emptyState(host) {
  * La tabla es la vía de lectura garantizada: ningún valor depende del tooltip
  * ni del color, que es además el alivio exigido por los tonos claros.
  */
-export function chartCard({ title, sub, span = 'col-6', legendEl, render, table, note, index = 0, tools = null, minHeight = false }) {
+export function chartCard({ title, sub, span = 'col-6', legendEl, render, table, note, index = 0, tools = null, minHeight = false, acento = null }) {
   const body = h('div', { class: 'card__body' });
   const plot = h('div', { class: minHeight ? 'chart-min' : '' });
   const tableWrap = h('div', { class: 'table-wrap hidden' });
@@ -1046,7 +1271,15 @@ export function chartCard({ title, sub, span = 'col-6', legendEl, render, table,
 
   const card = h(
     'section',
-    { class: `card glass reveal ${span}`, style: { '--i': index } },
+    {
+      class: `card glass reveal ${span}`,
+      style: {
+        '--i': index,
+        ...(acento !== null
+          ? { '--acento': seriesColor(acento), '--acento-lift': `var(--series-${(acento % 5) + 1}-lift)` }
+          : {}),
+      },
+    },
     h(
       'header',
       { class: 'card__head' },

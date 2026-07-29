@@ -17,7 +17,16 @@ import {
   seriesFill,
   observeResize,
   donut,
+  treemap,
+  lollipop,
 } from '../charts.js';
+
+/* Cada tarjeta lleva su propia ranura de color: leer cuatro gráficos seguidos
+   en el mismo verde los volvía indistinguibles de un vistazo. */
+const SLOT_TIPOS = 3;    // ámbar
+const SLOT_MEDIDAS = 1;  // naranja
+const SLOT_COMPRAS = 2;  // azul profundo
+const SLOT_ACUM = 4;     // vino
 
 const TOP_TIPOS = 14;
 const TOP_MEDIDAS = 12;
@@ -235,11 +244,24 @@ const vista = {
   topMedidas: TOP_MEDIDAS,
   formaReparto: 'barra',   // barra | anillo
   formaCruce: 'apilado',   // apilado | agrupado
+  formaTipos: 'barra',     // barra | piruleta | areas
+  formaMedidas: 'barra',   // barra | piruleta
+  formaAcum: 'area',       // area | linea
   ordenTipos: 'valor',     // valor | nombre
 };
 
+/** Elige el dibujante según la forma pedida en la tarjeta. */
+function dibujarCategorias(forma, el, opciones) {
+  if (forma === 'piruleta') return lollipop(el, opciones);
+  if (forma === 'areas') return treemap(el, opciones);
+  return barsH(el, opciones);
+}
+
 function selectorTop(valor, total, onChange) {
-  const opciones = [10, 15, 25, 40].filter((n) => n < total);
+  // El valor vigente entra siempre en la lista: si no, el botón mostraría «—».
+  const opciones = [...new Set([10, 15, 25, 40, valor])]
+    .filter((n) => n > 0 && n < total)
+    .sort((a, b) => a - b);
   opciones.push(total);
   return glassSelect({
     value: valor,
@@ -339,9 +361,23 @@ function renderCards(grid, data, items, s, repintar) {
     chartCard({
       title: 'Existencias por tipología',
       index: 1,
-      sub: 'Pulse una barra para filtrar el tablero por esa tipología',
+      sub: 'Pulse una tipología para filtrar el tablero por ella',
       span: 'col-8',
+      acento: SLOT_TIPOS,
       tools: [
+        segmented({
+          value: vista.formaTipos,
+          ariaLabel: 'Forma del gráfico de tipologías',
+          options: [
+            { value: 'barra', label: 'Barras', icon: '▤' },
+            { value: 'piruleta', label: 'Piruleta', icon: '⊙' },
+            { value: 'areas', label: 'Áreas', icon: '▦' },
+          ],
+          onChange: (v) => {
+            vista.formaTipos = v;
+            repintar();
+          },
+        }),
         selectorOrden(vista.ordenTipos, (v) => {
           vista.ordenTipos = v;
           repintar();
@@ -352,10 +388,11 @@ function renderCards(grid, data, items, s, repintar) {
         }),
       ],
       render: (el, o) =>
-        barsH(el, {
+        dibujarCategorias(vista.formaTipos, el, {
           rows: tipoRows,
           unidad: 'unidades',
           maxLabel: 26,
+          slot: SLOT_TIPOS,
           picked: filters.tipos[0] || null,
           onPick: (r) => setFilter({ tipos: filters.tipos[0] === r.key ? [] : [r.key] }),
           ...o,
@@ -467,7 +504,8 @@ function renderCards(grid, data, items, s, repintar) {
       index: 4,
       sub: 'Unidades adquiridas en cada compra registrada',
       span: 'col-6',
-      render: (el, o) => columns(el, { rows: compraRows, unidad: 'unidades compradas', ...o }),
+      acento: SLOT_COMPRAS,
+      render: (el, o) => columns(el, { rows: compraRows, unidad: 'unidades compradas', slot: SLOT_COMPRAS, ...o }),
       table: () =>
         simpleTable(
           [
@@ -485,7 +523,27 @@ function renderCards(grid, data, items, s, repintar) {
       index: 5,
       sub: 'Suma progresiva de las unidades adquiridas',
       span: 'col-6',
-      render: (el, o) => areaLine(el, { points: acumulado, unidad: 'unidades acumuladas', ...o }),
+      acento: SLOT_ACUM,
+      tools: segmented({
+        value: vista.formaAcum,
+        ariaLabel: 'Forma de la serie acumulada',
+        options: [
+          { value: 'area', label: 'Área', icon: '◣' },
+          { value: 'linea', label: 'Línea', icon: '↗' },
+        ],
+        onChange: (v) => {
+          vista.formaAcum = v;
+          repintar();
+        },
+      }),
+      render: (el, o) =>
+        areaLine(el, {
+          points: acumulado,
+          unidad: 'unidades acumuladas',
+          slot: SLOT_ACUM,
+          relleno: vista.formaAcum === 'area',
+          ...o,
+        }),
       table: () =>
         simpleTable(
           [
@@ -505,11 +563,33 @@ function renderCards(grid, data, items, s, repintar) {
       index: 6,
       sub: `${fmt(s.medidas)} medidas distintas en las referencias filtradas`,
       span: 'col-12',
-      tools: selectorTop(vista.topMedidas, s.porMedida.length, (n) => {
-        vista.topMedidas = n;
-        repintar();
-      }),
-      render: (el, o) => barsH(el, { rows: medidaRows, unidad: 'unidades', maxLabel: 26, ...o }),
+      acento: SLOT_MEDIDAS,
+      tools: [
+        segmented({
+          value: vista.formaMedidas,
+          ariaLabel: 'Forma del gráfico de medidas',
+          options: [
+            { value: 'barra', label: 'Barras', icon: '▤' },
+            { value: 'piruleta', label: 'Piruleta', icon: '⊙' },
+          ],
+          onChange: (v) => {
+            vista.formaMedidas = v;
+            repintar();
+          },
+        }),
+        selectorTop(vista.topMedidas, s.porMedida.length, (n) => {
+          vista.topMedidas = n;
+          repintar();
+        }),
+      ],
+      render: (el, o) =>
+        dibujarCategorias(vista.formaMedidas, el, {
+          rows: medidaRows,
+          unidad: 'unidades',
+          maxLabel: 26,
+          slot: SLOT_MEDIDAS,
+          ...o,
+        }),
       table: () =>
         simpleTable(
           [

@@ -7,13 +7,23 @@ export function h(tag, props = {}, ...children) {
     if (k === 'class') el.className = v;
     else if (k === 'html') el.innerHTML = v;
     else if (k === 'dataset') Object.assign(el.dataset, v);
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'style' && typeof v === 'object') aplicarEstilo(el, v);
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
     else if (k in el && k !== 'list' && typeof v !== 'boolean') el[k] = v;
     else el.setAttribute(k, v === true ? '' : v);
   }
   append(el, children);
   return el;
+}
+
+/* Las propiedades personalizadas (--i, --acento…) no se pueden asignar por
+   `Object.assign` sobre el objeto style: hay que pasar por setProperty. */
+function aplicarEstilo(el, estilo) {
+  for (const [k, v] of Object.entries(estilo)) {
+    if (v === null || v === undefined) continue;
+    if (k.startsWith('--')) el.style.setProperty(k, String(v));
+    else el.style[k] = v;
+  }
 }
 
 function append(el, children) {
@@ -185,7 +195,9 @@ export function observeReveal(root) {
     const alto = window.innerHeight;
     for (const el of [...pending]) {
       const r = el.getBoundingClientRect();
-      if (r.top < alto * 0.94 && r.bottom > 0) show(el);
+      /* Basta con que asome: exigir que entre un 6 % dejaba en blanco la
+         tarjeta apoyada en el filo inferior hasta que alguien la desplazara. */
+      if (r.top < alto && r.bottom > 0) show(el);
     }
     if (!pending.size) detach();
   };

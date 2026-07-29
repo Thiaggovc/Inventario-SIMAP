@@ -203,16 +203,42 @@ async function main() {
   ensureDefs();
   const root = document.getElementById('app');
   const pantallaCarga = document.getElementById('boot');
-  const arrancado = performance.now();
 
-  /* La pantalla de arranque se mantiene un instante mínimo: si el JSON llega
-     en 40 ms, un destello sería más molesto que la propia espera. */
+  /* Arranque: mínimo 3 s, con la barra avanzando de verdad. El progreso no es
+     decorativo — llega al 92 % con la carga de datos y remata al terminar. */
+  const DUR_BOOT = 3000;
+  const arrancado = performance.now();
+  let progresoDatos = 0;
+
+  if (pantallaCarga) {
+    const nombre = document.getElementById('boot-name');
+    [...'GRUPO SIMAP'].forEach((ch, i) => {
+      nombre.append(
+        h('span', { class: `boot__ch ${ch === ' ' ? 'boot__ch--sp' : ''}`, style: { '--c': i } },
+          ch === ' ' ? '' : ch)
+      );
+    });
+
+    const relleno = document.getElementById('boot-fill');
+    const pct = document.getElementById('boot-pct');
+    const tick = () => {
+      const t = Math.min(1, (performance.now() - arrancado) / DUR_BOOT);
+      // Se toma el menor entre el reloj y el avance real: la barra nunca miente.
+      const v = Math.min(t, 0.08 + progresoDatos * 0.92);
+      relleno.style.width = `${(v * 100).toFixed(1)}%`;
+      pct.textContent = v >= 1 ? 'Listo' : `Cargando · ${Math.round(v * 100)} %`;
+      if (t < 1 || v < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
   const retirarBoot = () => {
     if (!pantallaCarga) return;
-    const espera = Math.max(0, 620 - (performance.now() - arrancado));
+    progresoDatos = 1;
+    const espera = Math.max(0, DUR_BOOT - (performance.now() - arrancado));
     setTimeout(() => {
       pantallaCarga.classList.add('is-going');
-      setTimeout(() => pantallaCarga.remove(), 560);
+      setTimeout(() => pantallaCarga.remove(), 660);
     }, espera);
   };
 
@@ -261,14 +287,32 @@ async function main() {
   window.addEventListener('resize', onScroll, { passive: true });
   medir();
 
-  // Reflejo del cursor en cada botón de cristal.
+  /* Reflejo del cursor sobre el botón y un tirón magnético hacia él: el botón
+     se inclina unos píxeles hacia el dedo antes de que llegue. */
+  let imantado = null;
+  const soltarIman = () => {
+    if (!imantado) return;
+    imantado.style.removeProperty('--pull-x');
+    imantado.style.removeProperty('--pull-y');
+    imantado = null;
+  };
   document.addEventListener('pointermove', (e) => {
     const btn = e.target.closest?.('.btn');
-    if (!btn) return;
+    if (!btn) {
+      soltarIman();
+      return;
+    }
+    if (imantado && imantado !== btn) soltarIman();
     const b = btn.getBoundingClientRect();
     btn.style.setProperty('--mx', `${((e.clientX - b.left) / b.width) * 100}%`);
     btn.style.setProperty('--my', `${((e.clientY - b.top) / b.height) * 100}%`);
+    if (prefersReduced() || e.pointerType === 'touch') return;
+    const tope = (v, m) => Math.max(-m, Math.min(m, v));
+    btn.style.setProperty('--pull-x', `${tope((e.clientX - (b.left + b.width / 2)) * 0.22, 7).toFixed(2)}px`);
+    btn.style.setProperty('--pull-y', `${tope((e.clientY - (b.top + b.height / 2)) * 0.22, 5).toFixed(2)}px`);
+    imantado = btn;
   }, { passive: true });
+  document.addEventListener('pointerleave', soltarIman, { passive: true, capture: true });
 
   // Onda al pulsar: confirma la pulsación en el punto exacto del dedo.
   document.addEventListener('pointerdown', (e) => {

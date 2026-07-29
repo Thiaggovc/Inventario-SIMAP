@@ -44,7 +44,7 @@ export function glassSelect({
     h('span', { class: 'gs__caret', 'aria-hidden': 'true' })
   );
 
-  const raiz = h('div', { class: 'gs' }, btn);
+  const raiz = h('div', { class: `gs ${compact ? 'gs--compact' : ''}` }, btn);
   raiz.dataset.value = value;
 
   const pintarEtiqueta = () => {
@@ -228,10 +228,31 @@ export function glassSelect({
 /** Grupo de botones excluyentes, para elegir la forma de un gráfico. */
 export function segmented({ value, options, onChange, ariaLabel = 'Vista' }) {
   const raiz = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': ariaLabel });
+  // Píldora de cristal que se desliza hasta la opción elegida.
+  const tinta = h('span', { class: 'seg__ink', 'aria-hidden': 'true' });
+  raiz.append(tinta);
+
+  const colocar = () => {
+    /* El tablero rehace sus tarjetas a cada repintado; sin esto los oyentes de
+       `resize` se acumularían con cada segmentado desechado. */
+    if (raiz._montado && !raiz.isConnected) {
+      window.removeEventListener('resize', colocar);
+      return;
+    }
+    const activo = raiz.querySelector('.seg__btn[aria-checked="true"]');
+    if (!activo || !activo.offsetWidth) return;
+    tinta.style.width = `${activo.offsetWidth}px`;
+    tinta.style.height = `${activo.offsetHeight}px`;
+    tinta.style.transform = `translate(${activo.offsetLeft}px, ${activo.offsetTop}px)`;
+    raiz.classList.add('is-ready');
+    raiz._montado = true;
+  };
+
   const pintar = () => {
     for (const b of raiz.querySelectorAll('.seg__btn')) {
       b.setAttribute('aria-checked', String(b.dataset.v === String(raiz.dataset.value)));
     }
+    colocar();
   };
   raiz.dataset.value = value;
   for (const op of options) {
@@ -257,5 +278,11 @@ export function segmented({ value, options, onChange, ariaLabel = 'Vista' }) {
       )
     );
   }
+
+  /* Al construirlo aún no está en el documento: la primera colocación espera
+     al siguiente fotograma, cuando ya tiene medidas. */
+  requestAnimationFrame(colocar);
+  window.addEventListener('resize', colocar, { passive: true });
+  raiz._reposicionar = colocar;
   return raiz;
 }
