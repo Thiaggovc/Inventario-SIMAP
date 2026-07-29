@@ -1663,25 +1663,51 @@ table.data tfoot td {
   transition: opacity 620ms var(--ease-out), transform 620ms var(--ease-out);
 }
 
-:root { --boot-a: #eef3f9; --boot-b: #dae3ee; }
+/* La ventana y el fondo son del mismo tema: o todo claro, o todo oscuro. Un
+   panel blanco recortado sobre un fondo casi negro parecía un parche pegado. */
+:root {
+  --boot-a: #f7fafd;
+  --boot-b: #e6edf6;
+  --boot-panel-a: rgba(255, 255, 255, 0.97);
+  --boot-panel-b: rgba(240, 245, 251, 0.9);
+  --boot-edge: rgba(255, 255, 255, 0.9);
+  --boot-spec: rgba(255, 255, 255, 1);
+  --boot-sheen: rgba(255, 255, 255, 0.85);
+  --boot-shadow: 0 2px 6px rgba(9, 30, 50, 0.08), 0 34px 80px rgba(9, 30, 50, 0.18);
+  --boot-pista: rgba(0, 115, 196, 0.14);
+  --boot-pct: rgba(0, 115, 196, 0.72);
+}
+
 :root[data-theme="dark"],
-:root:where(:not([data-theme="light"])) { --boot-a: #141922; --boot-b: #080b10; }
+:root:where(:not([data-theme="light"])) {
+  --boot-a: #121821;
+  --boot-b: #070a0e;
+  --boot-panel-a: rgba(28, 36, 48, 0.92);
+  --boot-panel-b: rgba(15, 20, 28, 0.88);
+  --boot-edge: rgba(255, 255, 255, 0.1);
+  --boot-spec: rgba(255, 255, 255, 0.14);
+  --boot-sheen: rgba(255, 255, 255, 0.09);
+  --boot-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 34px 80px rgba(0, 0, 0, 0.6);
+  --boot-pista: rgba(120, 180, 235, 0.18);
+  /* Sobre panel oscuro el azul de marca no llega a 4,5:1 en cuerpo 10: la
+     línea de estado sube de tono; el nombre, en cuerpo 34 y peso 800, se
+     queda en el #0073C4 exacto de la marca. */
+  --boot-pct: #6fb4e8;
+}
 
 .boot.is-going { opacity: 0; transform: scale(1.04); pointer-events: none; }
 
-/* Ventana en tonos blancos: el mismo cristal del resto, aquí más presente
-   para que el azul de marca tenga sobre qué apoyarse en ambos temas. */
+/* Ventana de cristal, del mismo tono que el fondo que la rodea. */
 .boot__panel {
   position: relative;
   width: min(420px, calc(100vw - 48px));
   padding: 44px 44px 34px;
   border-radius: 26px;
-  background: linear-gradient(158deg, rgba(255, 255, 255, 0.97), rgba(240, 245, 251, 0.9));
+  background: linear-gradient(158deg, var(--boot-panel-a), var(--boot-panel-b));
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 6px rgba(9, 30, 50, 0.08), 0 34px 80px rgba(9, 30, 50, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border: 1px solid var(--boot-edge);
+  box-shadow: var(--boot-shadow), inset 0 1px 0 var(--boot-spec);
   text-align: center;
   overflow: hidden;
   animation: boot-panel 760ms var(--ease-out) both;
@@ -1697,7 +1723,7 @@ table.data tfoot td {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(74deg, transparent 40%, rgba(255, 255, 255, 0.85) 50%, transparent 60%);
+  background: linear-gradient(74deg, transparent 40%, var(--boot-sheen) 50%, transparent 60%);
   transform: translateX(-120%);
   animation: boot-sheen 2.1s var(--ease-soft) 500ms infinite;
   pointer-events: none;
@@ -1746,7 +1772,7 @@ table.data tfoot td {
   margin: 30px auto 0;
   width: 76%;
   border-radius: 4px;
-  background: rgba(0, 115, 196, 0.14);
+  background: var(--boot-pista);
   overflow: hidden;
 }
 
@@ -1766,7 +1792,7 @@ table.data tfoot td {
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(0, 115, 196, 0.72);
+  color: var(--boot-pct);
   font-variant-numeric: tabular-nums;
 }
 

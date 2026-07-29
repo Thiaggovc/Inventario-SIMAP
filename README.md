@@ -206,9 +206,11 @@ titulares destacan por tamaño y peso, no por cambiar de letra.
   aplicación son propios: panel de cristal anclado al botón, filtro de texto
   cuando la lista es larga, punto de color por serie y teclado completo
   (flechas, Inicio/Fin, Enter, Escape).
-- **Pantalla de arranque.** Una ventana de cristal en tonos blancos con «GRUPO
-  SIMAP» en el azul corporativo `#0073C4` —las letras entran girando una a una—
-  y una barra de avance fina bajo el nombre. Permanece **tres segundos como
+- **Pantalla de arranque.** Una ventana de cristal con «GRUPO SIMAP» en el azul
+  corporativo `#0073C4` —las letras entran girando una a una— y una barra de
+  avance fina bajo el nombre. La ventana y el fondo son del mismo tema: en claro
+  todo es blanco, en oscuro todo es negro. Un panel blanco recortado sobre un
+  fondo casi negro parecía un parche pegado encima. Permanece **tres segundos como
   mínimo**: una carga instantánea produciría un destello y nadie llegaría a leer
   nada. La barra no es decorativa —se queda en el menor entre el reloj y el
   avance real de los datos, así que nunca adelanta lo que no ha ocurrido.
