@@ -337,7 +337,17 @@ de salida:
    cuarenta y siete tipologías muy desiguales de golpe, donde una barra por cada
    una desperdiciaría el ancho. En el mapa, las franjas de la cola tienen altura
    mínima garantizada: un bloque exacto pero invisible no informa.
-9. **Detalle en todas partes.** Botones con tirón magnético hacia el cursor;
+9. **Ajustar el eje.** Cada gráfico con eje de magnitud —tipologías, medidas,
+   tipología × sede, compras por fecha y acumuladas— lleva un control **«Eje»**
+   para fijar a mano el máximo del eje de valores en vez de dejarlo automático.
+   Si el acumulado llega a 15.279, el eje automático corona en 20 mil y la curva
+   queda aplastada contra la mitad inferior; bajando el tope a 18 mil la misma
+   curva ocupa toda la altura y su variación se lee mejor. El panel sugiere unos
+   topes redondos por encima de los datos y admite cualquier cifra escrita a
+   mano; «Automático» lo devuelve al cálculo por omisión. Un tope por debajo de
+   los datos es legítimo —acerca la lectura a una zona— y el trazo se recorta en
+   el borde en vez de desbordar la tarjeta.
+10. **Detalle en todas partes.** Botones con tirón magnético hacia el cursor;
    barra de avance de lectura en la cabecera; tarjetas con barrido de luz al
    aparecer y al pasar el cursor; el punto de color del título gira al posarse
    encima; filas de tabla con acento que entra por la izquierda; flechas de

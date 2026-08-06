@@ -3,7 +3,7 @@
 import { h, clear, fmt, fmtFecha, fmtFechaHora, animateNumber, observeReveal, trackPointer, prefersReduced, displayTitle } from '../util.js';
 import { store, filterItems, summarize, crossTipoUbicacion, itemTotal, itemPropTotal, itemDescuadre, categoriaDe } from '../state.js';
 import { filters, filterBar, onFilters, hasActiveFilters, setFilter } from '../filters.js';
-import { glassSelect, segmented } from '../ui.js';
+import { glassSelect, segmented, axisControl } from '../ui.js';
 import {
   barsH,
   stackedBarsH,
@@ -19,6 +19,7 @@ import {
   donut,
   treemap,
   lollipop,
+  niceTicks,
 } from '../charts.js';
 
 /* Cada tarjeta lleva su propia ranura de color: leer cuatro gráficos seguidos
@@ -255,7 +256,27 @@ const vista = {
   formaMedidas: 'barra',   // barra | piruleta
   formaAcum: 'area',       // area | linea
   ordenTipos: 'valor',     // valor | nombre
+  // Tope del eje de valores por gráfico: null = automático, número = fijado a mano.
+  ejes: { tipos: null, medidas: null, cruce: null, compras: null, acum: null },
 };
+
+/**
+ * Control de eje para una tarjeta: fija el máximo del eje de valores y repinta.
+ * `dataMax` es el mayor valor que se está mostrando; con él se sugieren topes y
+ * se anuncia el valor automático.
+ */
+function selectorEje(id, dataMax, repintar) {
+  const autoMax = niceTicks(dataMax).at(-1);
+  return axisControl({
+    valor: vista.ejes[id],
+    dataMax,
+    autoMax,
+    onChange: (v) => {
+      vista.ejes[id] = v;
+      repintar();
+    },
+  });
+}
 
 /** Elige el dibujante según la forma pedida en la tarjeta. */
 function dibujarCategorias(forma, el, opciones) {
@@ -393,6 +414,10 @@ function renderCards(grid, data, items, s, repintar) {
           vista.topTipos = n;
           repintar();
         }),
+        // El mapa de áreas no tiene eje que ajustar; el control sólo aparece en barra y piruleta.
+        vista.formaTipos !== 'areas'
+          ? selectorEje('tipos', Math.max(...tipoRows.map((r) => r.value), 1), repintar)
+          : null,
       ],
       render: (el, o) =>
         dibujarCategorias(vista.formaTipos, el, {
@@ -402,6 +427,7 @@ function renderCards(grid, data, items, s, repintar) {
           slot: SLOT_TIPOS,
           picked: filters.tipos[0] || null,
           onPick: (r) => setFilter({ tipos: filters.tipos[0] === r.key ? [] : [r.key] }),
+          ejeMax: vista.formaTipos !== 'areas' ? vista.ejes.tipos : null,
           ...o,
         }),
       table: () =>
@@ -458,26 +484,33 @@ function renderCards(grid, data, items, s, repintar) {
 
   /* 4 · tipología × sede ------------------------------------------------- */
   const cross = crossTipoUbicacion(items, data.ubicaciones.filter((u) => !vista.sedesOcultas.has(u.id)), 12);
+  // El eje mide el total de la pila cuando está apilada, o el mayor segmento cuando se agrupa.
+  const cruceMax = vista.formaCruce === 'agrupado'
+    ? Math.max(...cross.flatMap((r) => visibles.map((u) => r.parts[u.id] || 0)), 1)
+    : Math.max(...cross.map((r) => r.total), 1);
   const cardCross = chartCard({
     title: 'Tipología por sede',
     index: 4,
     sub: 'Cómo se distribuye cada tipología entre las sedes; el resto se agrupa al final',
     span: 'col-12',
     legendEl: legend(ubSeries, { hidden: vista.sedesOcultas, onToggle: alternarSede }),
-    tools: segmented({
-      value: vista.formaCruce,
-      ariaLabel: 'Disposición de las series',
-      options: [
-        { value: 'apilado', label: 'Apilado', icon: '▤' },
-        { value: 'agrupado', label: 'Agrupado', icon: '▥' },
-      ],
-      onChange: (v) => {
-        vista.formaCruce = v;
-        repintar();
-      },
-    }),
+    tools: [
+      segmented({
+        value: vista.formaCruce,
+        ariaLabel: 'Disposición de las series',
+        options: [
+          { value: 'apilado', label: 'Apilado', icon: '▤' },
+          { value: 'agrupado', label: 'Agrupado', icon: '▥' },
+        ],
+        onChange: (v) => {
+          vista.formaCruce = v;
+          repintar();
+        },
+      }),
+      selectorEje('cruce', cruceMax, repintar),
+    ],
     render: (el, o) =>
-      stackedBarsH(el, { rows: cross, series: visibles, unidad: 'unidades', modo: vista.formaCruce, ...o }),
+      stackedBarsH(el, { rows: cross, series: visibles, unidad: 'unidades', modo: vista.formaCruce, ejeMax: vista.ejes.cruce, ...o }),
     table: () =>
       simpleTable(
         [
@@ -512,7 +545,8 @@ function renderCards(grid, data, items, s, repintar) {
       sub: 'Unidades adquiridas en cada compra registrada',
       span: 'col-6',
       acento: SLOT_COMPRAS,
-      render: (el, o) => columns(el, { rows: compraRows, unidad: 'unidades compradas', slot: SLOT_COMPRAS, ...o }),
+      tools: selectorEje('compras', Math.max(...compraRows.map((r) => r.value), 1), repintar),
+      render: (el, o) => columns(el, { rows: compraRows, unidad: 'unidades compradas', slot: SLOT_COMPRAS, ejeMax: vista.ejes.compras, ...o }),
       table: () =>
         simpleTable(
           [
@@ -531,24 +565,28 @@ function renderCards(grid, data, items, s, repintar) {
       sub: 'Suma progresiva de las unidades adquiridas',
       span: 'col-6',
       acento: SLOT_ACUM,
-      tools: segmented({
-        value: vista.formaAcum,
-        ariaLabel: 'Forma de la serie acumulada',
-        options: [
-          { value: 'area', label: 'Área', icon: '◣' },
-          { value: 'linea', label: 'Línea', icon: '↗' },
-        ],
-        onChange: (v) => {
-          vista.formaAcum = v;
-          repintar();
-        },
-      }),
+      tools: [
+        segmented({
+          value: vista.formaAcum,
+          ariaLabel: 'Forma de la serie acumulada',
+          options: [
+            { value: 'area', label: 'Área', icon: '◣' },
+            { value: 'linea', label: 'Línea', icon: '↗' },
+          ],
+          onChange: (v) => {
+            vista.formaAcum = v;
+            repintar();
+          },
+        }),
+        selectorEje('acum', Math.max(...acumulado.map((p) => p.value), 1), repintar),
+      ],
       render: (el, o) =>
         areaLine(el, {
           points: acumulado,
           unidad: 'unidades acumuladas',
           slot: SLOT_ACUM,
           relleno: vista.formaAcum === 'area',
+          ejeMax: vista.ejes.acum,
           ...o,
         }),
       table: () =>
@@ -588,6 +626,7 @@ function renderCards(grid, data, items, s, repintar) {
           vista.topMedidas = n;
           repintar();
         }),
+        selectorEje('medidas', Math.max(...medidaRows.map((r) => r.value), 1), repintar),
       ],
       render: (el, o) =>
         dibujarCategorias(vista.formaMedidas, el, {
@@ -595,6 +634,7 @@ function renderCards(grid, data, items, s, repintar) {
           unidad: 'unidades',
           maxLabel: 26,
           slot: SLOT_MEDIDAS,
+          ejeMax: vista.ejes.medidas,
           ...o,
         }),
       table: () =>

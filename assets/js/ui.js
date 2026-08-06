@@ -5,7 +5,7 @@
  * de accesibilidad de un listbox (teclado completo, roles y foco gestionado).
  */
 
-import { h, clear, norm, prefersReduced } from './util.js';
+import { h, clear, norm, prefersReduced, fmt, fmtCompact } from './util.js';
 
 let abierto = null;
 
@@ -294,5 +294,175 @@ export function segmented({ value, options, onChange, ariaLabel = 'Vista' }) {
   requestAnimationFrame(colocar);
   window.addEventListener('resize', colocar, { passive: true });
   raiz._reposicionar = colocar;
+  return raiz;
+}
+
+/* -------------------------------------------------------- control de eje -- */
+
+/** Paso redondo cómodo para escalonar los topes sugeridos de un eje. */
+function pasoRedondo(x) {
+  const raw = Math.max(x, 1) / 6;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  return (n >= 5 ? 5 : n >= 2 ? 2 : n >= 1 ? 1 : 0.5) * mag;
+}
+
+/** Topes sugeridos: el primero justo por encima de los datos, y tres escalones. */
+function sugerirTopes(dataMax) {
+  const base = Math.max(dataMax || 0, 1);
+  const paso = pasoRedondo(base);
+  const primero = Math.max(paso, Math.ceil(base / paso) * paso);
+  return [primero, primero + paso, primero + paso * 2, primero + paso * 3];
+}
+
+/**
+ * Control del eje de valores. Un botón de cristal que abre un panel para fijar
+ * a mano el máximo del eje —o volver a «Automático»—. Sin tope, el gráfico
+ * elige la escala; con tope, quien lee decide cuánta cabeza deja sobre los
+ * datos y, por tanto, cómo se aprecia la variación.
+ */
+export function axisControl({ valor = null, autoMax = 0, dataMax = 0, onChange, ariaLabel = 'Ajustar el eje de valores' }) {
+  const etiqueta = h('span', { class: 'gs__value' });
+  const btn = h(
+    'button',
+    {
+      class: 'gs__btn gs__btn--sm axisctl__btn',
+      type: 'button',
+      'aria-haspopup': 'dialog',
+      'aria-expanded': 'false',
+      'aria-label': ariaLabel,
+    },
+    h('span', { class: 'axisctl__ico', 'aria-hidden': 'true' }, '⇥'),
+    etiqueta,
+    h('span', { class: 'gs__caret', 'aria-hidden': 'true' })
+  );
+
+  const raiz = h('div', { class: 'gs gs--compact axisctl' }, btn);
+  let actual = valor && valor > 0 ? Math.round(valor) : null;
+
+  const pintar = () => {
+    etiqueta.textContent = actual ? `Eje ${fmtCompact(actual)}` : 'Eje auto';
+    btn.classList.toggle('is-set', actual != null);
+  };
+  pintar();
+
+  let panel = null;
+
+  const cerrar = () => {
+    if (!panel) return;
+    const p = panel;
+    panel = null;
+    abierto = null;
+    btn.setAttribute('aria-expanded', 'false');
+    p.classList.add('is-closing');
+    setTimeout(() => p.remove(), prefersReduced() ? 0 : 140);
+    document.removeEventListener('pointerdown', fuera, true);
+    window.removeEventListener('resize', cerrar);
+    window.removeEventListener('scroll', cerrar, true);
+  };
+
+  const fuera = (e) => {
+    if (panel && !panel.contains(e.target) && !raiz.contains(e.target)) cerrar();
+  };
+
+  const aplicar = (v) => {
+    actual = v && v > 0 ? Math.round(v) : null;
+    pintar();
+    cerrar();
+    btn.focus({ preventScroll: true });
+    if (onChange) onChange(actual);
+  };
+
+  const situar = () => {
+    const b = btn.getBoundingClientRect();
+    const ancho = 236;
+    panel.style.width = `${ancho}px`;
+    const abajo = window.innerHeight - b.bottom - 12;
+    const arriba = b.top - 12;
+    const haciaArriba = abajo < 210 && arriba > abajo;
+    panel.style.left = `${Math.max(12, Math.min(b.left, window.innerWidth - ancho - 12))}px`;
+    if (haciaArriba) {
+      panel.style.bottom = `${window.innerHeight - b.top + 6}px`;
+      panel.style.top = 'auto';
+      panel.dataset.dir = 'up';
+    } else {
+      panel.style.top = `${b.bottom + 6}px`;
+      panel.style.bottom = 'auto';
+      panel.dataset.dir = 'down';
+    }
+  };
+
+  const abrir = () => {
+    if (panel) return cerrar();
+    cerrarDesplegables();
+
+    const input = h('input', {
+      class: 'gs__input axisctl__input',
+      type: 'number',
+      inputmode: 'numeric',
+      min: '1',
+      step: '100',
+      placeholder: autoMax ? fmt(autoMax) : 'Máximo',
+      value: actual != null ? String(actual) : '',
+      'aria-label': 'Máximo del eje',
+    });
+    const enviar = () => aplicar(Number(input.value));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        enviar();
+      }
+    });
+
+    const topes = sugerirTopes(dataMax);
+
+    panel = h(
+      'div',
+      { class: 'gs__panel axisctl__panel', role: 'dialog', 'aria-label': ariaLabel },
+      h('div', { class: 'axisctl__head' }, 'Máximo del eje'),
+      dataMax
+        ? h('div', { class: 'axisctl__hint' }, `Los datos llegan a ${fmt(dataMax)}. Automático: ${fmt(autoMax || dataMax)}.`)
+        : null,
+      h(
+        'div',
+        { class: 'axisctl__chips' },
+        topes.map((n) =>
+          h('button', { class: `axisctl__chip ${actual === n ? 'is-on' : ''}`, type: 'button', onclick: () => aplicar(n) }, fmtCompact(n))
+        )
+      ),
+      h(
+        'div',
+        { class: 'axisctl__row' },
+        input,
+        h('button', { class: 'btn btn--sm btn--primary', type: 'button', onclick: enviar }, 'Aplicar')
+      ),
+      h('button', { class: `btn btn--sm btn--ghost axisctl__auto ${actual == null ? 'is-on' : ''}`, type: 'button', onclick: () => aplicar(null) }, 'Automático')
+    );
+
+    document.body.append(panel);
+    situar();
+    btn.setAttribute('aria-expanded', 'true');
+    abierto = { close: cerrar };
+    document.addEventListener('pointerdown', fuera, true);
+    window.addEventListener('resize', cerrar);
+    window.addEventListener('scroll', cerrar, true);
+    input.focus({ preventScroll: true });
+    input.select();
+  };
+
+  btn.addEventListener('click', abrir);
+  raiz.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel) {
+      e.preventDefault();
+      cerrar();
+      btn.focus({ preventScroll: true });
+    }
+  });
+
+  raiz._set = (v) => {
+    actual = v && v > 0 ? Math.round(v) : null;
+    pintar();
+  };
+  raiz._dispose = cerrar;
   return raiz;
 }

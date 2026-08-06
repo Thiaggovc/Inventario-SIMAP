@@ -1562,6 +1562,68 @@ table.data tfoot td {
 
 .gs__list { overflow-y: auto; padding: 6px; scrollbar-width: thin; }
 
+/* -------- control de eje: botón compacto + panel para fijar el máximo ----- */
+
+.axisctl__btn { gap: 7px; }
+.axisctl__ico {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--brand);
+  transform: rotate(90deg);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.axisctl__btn.is-set .axisctl__ico { transform: rotate(90deg) scale(1.12); }
+.axisctl__btn.is-set { color: var(--ink); border-color: color-mix(in srgb, var(--brand) 40%, var(--glass-edge)); }
+
+.axisctl__panel { padding: 13px; gap: 11px; }
+.axisctl__head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.axisctl__hint { font-size: 11.5px; color: var(--ink-3); line-height: 1.35; margin-top: -4px; }
+
+.axisctl__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.axisctl__chip {
+  appearance: none;
+  flex: 1 1 auto;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-spring), border-color var(--dur-1) var(--ease-soft),
+    color var(--dur-1) var(--ease-soft), background var(--dur-2) var(--ease-soft);
+}
+.axisctl__chip:hover { transform: translateY(-1px); border-color: var(--rule-strong); color: var(--ink); }
+.axisctl__chip.is-on {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(150deg, var(--hero-a), var(--hero-b));
+  box-shadow: 0 3px 12px rgba(0, 115, 196, 0.26);
+}
+
+.axisctl__row { display: flex; gap: 7px; align-items: stretch; }
+.axisctl__input {
+  flex: 1 1 auto;
+  border-radius: 10px;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.axisctl__input::-webkit-outer-spin-button,
+.axisctl__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.axisctl__row .btn { flex: none; }
+
+.axisctl__auto { width: 100%; justify-content: center; }
+.axisctl__auto.is-on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 32%, transparent); }
+
 .gs__op {
   display: flex;
   align-items: center;

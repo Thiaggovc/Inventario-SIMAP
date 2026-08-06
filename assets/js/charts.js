@@ -268,6 +268,37 @@ export function niceTicks(max, count = 4) {
   return out;
 }
 
+/**
+ * Ticks hasta un tope exacto elegido por quien lee: el último tick es el tope,
+ * de modo que la escala llega justo a ese valor. El paso intermedio se redondea
+ * para que las cifras del eje sigan siendo cómodas de leer.
+ */
+function ticksHasta(tope, count = 4) {
+  if (!(tope > 0)) return [0];
+  const raw = tope / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm >= 5 ? 10 : norm >= 2.5 ? 5 : norm >= 1.5 ? 2 : 1) * mag;
+  const out = [];
+  for (let v = 0; v < tope - step * 0.001; v += step) out.push(Math.round(v));
+  out.push(Math.round(tope));
+  return out;
+}
+
+/**
+ * Escala del eje de magnitud. Si se ha fijado un tope a mano se respeta —aunque
+ * quede por encima o por debajo del máximo real—; si no, se elige automático.
+ * Devuelve los ticks y una función que mapea valor→píxel ya acotada al lienzo,
+ * para que un tope menor que los datos recorte en vez de desbordar la tarjeta.
+ */
+function escalaEje(dataMax, ejeMax, extent) {
+  const tope = Number(ejeMax);
+  const ticks = tope > 0 ? ticksHasta(tope) : niceTicks(dataMax);
+  const top = ticks[ticks.length - 1] || 1;
+  const map = (v) => Math.max(0, Math.min(extent, (v / top) * extent));
+  return { ticks, top, map };
+}
+
 function textWidth(s, size = 11) {
   return String(s).length * size * 0.58;
 }
@@ -369,7 +400,7 @@ function inkOn(cssColor) {
 
 /* ------------------------------------------------- barras horizontales -- */
 
-export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null }) {
+export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null, ejeMax = null }) {
   ensureDefs();
   clear(host);
   if (!rows.length) return emptyState(host);
@@ -383,8 +414,7 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26
   const plotW = Math.max(90, width - labelW - valueW);
   const height = padT + rows.length * rowH + padB;
   const max = Math.max(...rows.map((r) => r.value), 1);
-  const ticks = niceTicks(max);
-  const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
+  const { ticks, map: scale } = escalaEje(max, ejeMax, plotW);
 
   const root = svg('svg', {
     class: `chart ${onPick ? 'chart--pickable' : ''}`,
@@ -454,7 +484,7 @@ export function barsH(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26
 
 /* -------------------------------------------- barras apiladas por serie -- */
 
-export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 28, animate = true, modo = 'apilado' }) {
+export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel = 28, animate = true, modo = 'apilado', ejeMax = null }) {
   ensureDefs();
   clear(host);
   if (!rows.length || !series.length) return emptyState(host);
@@ -473,8 +503,7 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
   const max = agrupado
     ? Math.max(...rows.flatMap((r) => series.map((s) => r.parts[s.id] || 0)), 1)
     : Math.max(...rows.map((r) => r.total), 1);
-  const ticks = niceTicks(max);
-  const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
+  const { ticks, map: scale } = escalaEje(max, ejeMax, plotW);
 
   const root = svg('svg', {
     class: 'chart',
@@ -510,15 +539,19 @@ export function stackedBarsH(host, { rows, series, unidad = 'unidades', maxLabel
         segsG.append(...glassMark(barPath(labelW, yy, Math.max(1.5, scale(v)), bh, 'right'), s.fill, s.id));
       });
     } else {
-      let x = labelW;
+      // Se acumula el valor y se mapea la posición corrida: así, si el tope del
+      // eje queda por debajo del total, la pila se recorta en el borde en vez
+      // de desbordar la tarjeta.
+      let acc = 0;
       active.forEach((s, k) => {
         const v = r.parts[s.id] || 0;
         const isLast = k === active.length - 1;
+        const x0 = labelW + scale(acc);
+        acc += v;
+        const full = labelW + scale(acc) - x0;
         // El hueco de 2 px lo aporta la superficie: nunca un borde dibujado.
-        const raw = scale(v);
-        const w = Math.max(1.5, isLast ? raw : raw - GAP);
-        segsG.append(...glassMark(barPath(x, y, w, bh, isLast ? 'right' : 'square'), s.fill, s.id));
-        x += raw;
+        const w = Math.max(1.5, isLast ? full : Math.max(0, full - GAP));
+        segsG.append(...glassMark(barPath(x0, y, w, bh, isLast ? 'right' : 'square'), s.fill, s.id));
       });
     }
 
@@ -767,7 +800,7 @@ export function treemap(host, { rows, unidad = 'unidades', slot = 0, animate = t
  * parecidos pesa mucho menos tinta que la barra maciza y el ojo compara
  * posiciones de puntos, que es más preciso que comparar longitudes.
  */
-export function lollipop(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null }) {
+export function lollipop(host, { rows, unidad = 'unidades', slot = 0, maxLabel = 26, animate = true, onPick = null, picked = null, ejeMax = null }) {
   ensureDefs();
   clear(host);
   if (!rows.length) return emptyState(host);
@@ -781,8 +814,7 @@ export function lollipop(host, { rows, unidad = 'unidades', slot = 0, maxLabel =
   const plotW = Math.max(90, width - labelW - valueW);
   const height = padT + rows.length * rowH + padB;
   const max = Math.max(...rows.map((r) => r.value), 1);
-  const ticks = niceTicks(max);
-  const scale = (v) => (v / ticks[ticks.length - 1]) * plotW;
+  const { ticks, map: scale } = escalaEje(max, ejeMax, plotW);
   const color = seriesColor(slot);
 
   const root = svg('svg', {
@@ -958,7 +990,7 @@ export function donut(host, { parts, unidad = 'unidades', animate = true }) {
 
 /* ---------------------------------------------------------- columnas ---- */
 
-export function columns(host, { rows, unidad = 'unidades', slot = 0, animate = true }) {
+export function columns(host, { rows, unidad = 'unidades', slot = 0, animate = true, ejeMax = null }) {
   ensureDefs();
   clear(host);
   if (!rows.length) return emptyState(host);
@@ -976,9 +1008,8 @@ export function columns(host, { rows, unidad = 'unidades', slot = 0, animate = t
   const height = padT + plotH + axisH;
   const bw = Math.min(BAR_MAX, Math.max(6, band - 14));
   const max = Math.max(...rows.map((r) => r.value), 1);
-  const ticks = niceTicks(max);
-  const top = ticks[ticks.length - 1];
-  const yOf = (v) => padT + plotH - (v / top) * plotH;
+  const { ticks, map } = escalaEje(max, ejeMax, plotH);
+  const yOf = (v) => padT + plotH - map(v);
 
   const root = svg('svg', {
     class: 'chart',
@@ -1036,7 +1067,7 @@ export function columns(host, { rows, unidad = 'unidades', slot = 0, animate = t
 
 /* -------------------------------------------------------------- área ---- */
 
-export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate = true, relleno = true }) {
+export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate = true, relleno = true, ejeMax = null }) {
   ensureDefs();
   clear(host);
   if (points.length < 2) return emptyState(host);
@@ -1050,10 +1081,9 @@ export function areaLine(host, { points, unidad = 'unidades', slot = 0, animate 
   const height = padT + plotH + axisH;
   const plotW = width - padL - padR;
   const max = Math.max(...points.map((p) => p.value), 1);
-  const ticks = niceTicks(max);
-  const top = ticks[ticks.length - 1];
+  const { ticks, map } = escalaEje(max, ejeMax, plotH);
   const xOf = (i) => padL + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
-  const yOf = (v) => padT + plotH - (v / top) * plotH;
+  const yOf = (v) => padT + plotH - map(v);
   const color = seriesColor(slot);
 
   const root = svg('svg', {
